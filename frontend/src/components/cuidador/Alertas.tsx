@@ -1,42 +1,32 @@
 import { useState, useEffect } from 'react';
 import type { Alerta } from '../../types';
 import api from '../../services/api';
+import { useVinculo } from '../../contexts/VinculoContext';
 import Card from '../common/Card';
 import Header from '../layout/Header';
 
 const severidadeLabel: Record<string, string> = {
-  CRITICA: 'Crítico',
-  ALTA: 'Alto',
-  MEDIA: 'Médio',
-  NORMAL: 'Normal',
+  CRITICA: 'Crítico', ALTA: 'Alto', MEDIA: 'Médio', NORMAL: 'Normal',
 };
-
 const severidadeBg: Record<string, string> = {
-  CRITICA: '#fee2e2',
-  ALTA: '#ffedd5',
-  MEDIA: '#fef9c3',
-  NORMAL: '#dcfce7',
+  CRITICA: '#fee2e2', ALTA: '#ffedd5', MEDIA: '#fef9c3', NORMAL: '#dcfce7',
 };
-
 const severidadeColor: Record<string, string> = {
-  CRITICA: '#ef4444',
-  ALTA: '#f97316',
-  MEDIA: '#ca8a04',
-  NORMAL: '#16a34a',
+  CRITICA: '#ef4444', ALTA: '#f97316', MEDIA: '#ca8a04', NORMAL: '#16a34a',
 };
-
 const tipoIcon: Record<string, string> = {
-  GLICOSE: '🩸',
-  PRESSAO: '❤️',
-  MEDICAMENTO: '💊',
+  GLICOSE: '🩸', PRESSAO: '❤️', MEDICAMENTO: '💊',
 };
 
 export default function Alertas() {
+  const { pacienteSelecionado } = useVinculo();
   const [alertas, setAlertas] = useState<Alerta[]>([]);
 
   useEffect(() => {
-    api.get('/alertas').then(res => setAlertas(res.data));
-  }, []);
+    if (!pacienteSelecionado?.id) return;
+    api.get('/alertas', { params: { pacienteId: pacienteSelecionado.id } })
+      .then(res => setAlertas(res.data));
+  }, [pacienteSelecionado?.id]);
 
   return (
     <div>
@@ -60,12 +50,8 @@ export default function Alertas() {
                   </div>
                 </div>
                 <span style={{
-                  padding: '4px 12px',
-                  borderRadius: '20px',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  background: severidadeBg[a.severidade],
-                  color: severidadeColor[a.severidade],
+                  padding: '4px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 600,
+                  background: severidadeBg[a.severidade], color: severidadeColor[a.severidade],
                 }}>
                   {severidadeLabel[a.severidade]}
                 </span>

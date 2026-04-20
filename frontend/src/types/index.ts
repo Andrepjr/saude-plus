@@ -37,6 +37,13 @@ export interface MedicamentoStatus extends Medicamento {
   horariosStatus: Record<string, boolean>;
 }
 
+export interface PacienteVinculado {
+  id: number;
+  nome: string;
+  email: string;
+  dataVinculo?: string;
+}
+
 export interface MensagemChat {
   role: 'user' | 'assistant';
   content: string;

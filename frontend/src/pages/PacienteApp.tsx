@@ -3,14 +3,17 @@ import { useNavigate } from 'react-router-dom';
 import ChatAbby from '../components/paciente/ChatAbby';
 import Remedios from '../components/paciente/Remedios';
 import Historico from '../components/paciente/Historico';
+import CodigoVinculo from '../components/paciente/CodigoVinculo';
 import { useAuth } from '../contexts/AuthContext';
+import Button from '../components/common/Button';
 
-type Tab = 'chat' | 'remedios' | 'historico';
+type Tab = 'chat' | 'remedios' | 'historico' | 'perfil';
 
 const tabs: { key: Tab; icon: string; label: string }[] = [
-  { key: 'chat', icon: '💬', label: 'Chat Abby' },
-  { key: 'remedios', icon: '💊', label: 'Remédios' },
+  { key: 'chat',      icon: '💬', label: 'Chat Abby' },
+  { key: 'remedios',  icon: '💊', label: 'Remédios'  },
   { key: 'historico', icon: '📋', label: 'Histórico' },
+  { key: 'perfil',    icon: '👤', label: 'Perfil'    },
 ];
 
 export default function PacienteApp() {
@@ -58,9 +61,35 @@ export default function PacienteApp() {
 
       {/* Content */}
       <main style={{ flex: 1, padding: '20px 16px', paddingBottom: '80px' }}>
-        {tab === 'chat' && <ChatAbby />}
-        {tab === 'remedios' && <Remedios />}
+        {tab === 'chat'      && <ChatAbby />}
+        {tab === 'remedios'  && <Remedios />}
         {tab === 'historico' && <Historico />}
+        {tab === 'perfil'    && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '480px', margin: '0 auto' }}>
+            <h2 style={{ fontSize: '20px', fontWeight: 700, margin: 0 }}>Perfil</h2>
+            <CodigoVinculo />
+            <div style={{
+              background: '#fff',
+              borderRadius: '12px',
+              border: '1px solid var(--cinza-borda)',
+              padding: '16px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px',
+            }}>
+              <div style={{ fontWeight: 600, fontSize: '15px' }}>Conta</div>
+              <div>
+                <div style={{ fontSize: '12px', color: 'var(--cinza-texto)' }}>Nome</div>
+                <div style={{ fontWeight: 500 }}>{user?.nome}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: '12px', color: 'var(--cinza-texto)' }}>E-mail</div>
+                <div style={{ fontWeight: 500 }}>{user?.email}</div>
+              </div>
+            </div>
+            <Button onClick={handleLogout} variant="danger">Sair da conta</Button>
+          </div>
+        )}
       </main>
 
       {/* Bottom Nav */}
@@ -95,7 +124,7 @@ export default function PacienteApp() {
               transition: 'all 0.15s',
             }}
           >
-            <span style={{ fontSize: '22px' }}>{t.icon}</span>
+            <span style={{ fontSize: '20px' }}>{t.icon}</span>
             {t.label}
           </button>
         ))}

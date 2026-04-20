@@ -4,6 +4,7 @@ import {
 } from 'recharts';
 import type { RegistroSaude, MedicamentoStatus, Alerta } from '../../types';
 import api from '../../services/api';
+import { useVinculo } from '../../contexts/VinculoContext';
 import Card from '../common/Card';
 import Header from '../layout/Header';
 
@@ -42,6 +43,9 @@ function StatCard({ icon, label, value, unit, status }: {
 }
 
 export default function Dashboard() {
+  const { pacienteSelecionado } = useVinculo();
+  const pid = pacienteSelecionado?.id;
+
   const [glicoseHoje, setGlicoseHoje] = useState<{ valor: string; status: string } | null>(null);
   const [pressaoHoje, setPressaoHoje] = useState<{ valor: string; status: string } | null>(null);
   const [glicose7d, setGlicose7d] = useState<RegistroSaude[]>([]);
@@ -50,12 +54,14 @@ export default function Dashboard() {
   const [analise, setAnalise] = useState('');
 
   useEffect(() => {
+    if (!pid) return;
+    const p = { pacienteId: pid };
     Promise.all([
-      api.get('/saude/ultimos'),
-      api.get('/saude?tipo=GLICOSE&dias=7'),
-      api.get('/medicamentos/status-dia'),
-      api.get('/alertas'),
-      api.get('/alertas/analise-ia'),
+      api.get('/saude/ultimos', { params: p }),
+      api.get('/saude', { params: { tipo: 'GLICOSE', dias: 7, ...p } }),
+      api.get('/medicamentos/status-dia', { params: p }),
+      api.get('/alertas', { params: p }),
+      api.get('/alertas/analise-ia', { params: p }),
     ]).then(([ultimos, g7d, meds, als, ia]) => {
       const u = ultimos.data;
       if (u.GLICOSE) setGlicoseHoje({ valor: u.GLICOSE.valor, status: u.GLICOSE.status });
@@ -65,7 +71,7 @@ export default function Dashboard() {
       setAlertas(als.data.slice(0, 5));
       setAnalise(ia.data.analise);
     });
-  }, []);
+  }, [pid]);
 
   const totalMeds = medicamentos.length;
   const tomados = medicamentos.filter(m => m.tomado).length;
@@ -75,9 +81,14 @@ export default function Dashboard() {
     valor: Number(r.valor),
   }));
 
+  const nomePaciente = pacienteSelecionado?.nome?.split(' ')[0] ?? '';
+
   return (
     <div>
-      <Header title="Dashboard" subtitle={`Hoje, ${new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}`} />
+      <Header
+        title="Dashboard"
+        subtitle={`${nomePaciente ? `${nomePaciente} — ` : ''}Hoje, ${new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}`}
+      />
 
       {/* Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '24px' }}>
@@ -104,7 +115,6 @@ export default function Dashboard() {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
-        {/* Gráfico Glicose 7d */}
         <Card title="Glicose — últimos 7 dias" style={{ gridColumn: '1 / -1' }}>
           {chartData.length === 0 ? (
             <p style={{ color: 'var(--cinza-texto)', textAlign: 'center', padding: '40px 0' }}>Sem dados ainda.</p>
@@ -123,7 +133,6 @@ export default function Dashboard() {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-        {/* Tabela de medicamentos */}
         <Card title="Medicamentos do dia">
           {medicamentos.length === 0 ? (
             <p style={{ color: 'var(--cinza-texto)', fontSize: '14px' }}>Nenhum medicamento.</p>
@@ -158,7 +167,6 @@ export default function Dashboard() {
           )}
         </Card>
 
-        {/* Alertas recentes */}
         <Card title="Alertas recentes">
           {alertas.length === 0 ? (
             <p style={{ color: 'var(--cinza-texto)', fontSize: '14px' }}>Nenhum alerta.</p>
@@ -180,7 +188,6 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* Análise IA */}
       {analise && (
         <Card title="Análise da IA — Abby" style={{ marginTop: '16px' }}>
           <div style={{

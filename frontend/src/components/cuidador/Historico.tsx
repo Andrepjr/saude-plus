@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { RegistroSaude } from '../../types';
 import api from '../../services/api';
+import { useVinculo } from '../../contexts/VinculoContext';
 import Card from '../common/Card';
 import Header from '../layout/Header';
 
@@ -12,14 +13,17 @@ const statusBg: Record<string, string> = {
 };
 
 export default function HistoricoCuidador() {
+  const { pacienteSelecionado } = useVinculo();
   const [registros, setRegistros] = useState<RegistroSaude[]>([]);
   const [filtro, setFiltro] = useState<'TODOS' | 'GLICOSE' | 'PRESSAO'>('TODOS');
   const [dias, setDias] = useState(7);
 
   useEffect(() => {
-    const tipo = filtro !== 'TODOS' ? `&tipo=${filtro}` : '';
-    api.get(`/saude?dias=${dias}${tipo}`).then(res => setRegistros(res.data));
-  }, [filtro, dias]);
+    if (!pacienteSelecionado?.id) return;
+    const params: Record<string, unknown> = { dias, pacienteId: pacienteSelecionado.id };
+    if (filtro !== 'TODOS') params.tipo = filtro;
+    api.get('/saude', { params }).then(res => setRegistros(res.data));
+  }, [filtro, dias, pacienteSelecionado?.id]);
 
   return (
     <div>

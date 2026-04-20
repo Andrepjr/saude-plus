@@ -1,17 +1,19 @@
+const oracledb = require('oracledb');
 const { getConnection } = require('../config/database');
+const { resolveTargetId } = require('../utils/resolveTarget');
 
 async function getRegistros(req, res, next) {
-  const usuarioId = req.user.id;
   const { tipo, dias = 7 } = req.query;
   let conn;
   try {
     conn = await getConnection();
+    const usuarioId = await resolveTargetId(req, conn);
     const params = { u_id: usuarioId };
     let sql = `SELECT id, tipo, valor, data_hora, status, fonte
-           FROM registros_saude
-           WHERE usuario_id = :u_id
-           AND data_hora >= SYSTIMESTAMP - ${parseInt(dias)}
-           ORDER BY data_hora DESC`;
+               FROM registros_saude
+               WHERE usuario_id = :u_id
+               AND data_hora >= SYSTIMESTAMP - ${parseInt(dias)}
+               ORDER BY data_hora DESC`;
 
     if (tipo) {
       sql = `SELECT id, tipo, valor, data_hora, status, fonte
@@ -71,7 +73,7 @@ async function createRegistro(req, res, next) {
         tp: tipo.toUpperCase(),
         valor,
         st: status,
-        out_id: { dir: require('oracledb').BIND_OUT, type: require('oracledb').NUMBER },
+        out_id: { dir: oracledb.BIND_OUT, type: oracledb.NUMBER },
       }
     );
     res.status(201).json({ id: result.outBinds.out_id[0], tipo, valor, status });
@@ -83,10 +85,10 @@ async function createRegistro(req, res, next) {
 }
 
 async function getUltimos(req, res, next) {
-  const usuarioId = req.user.id;
   let conn;
   try {
     conn = await getConnection();
+    const usuarioId = await resolveTargetId(req, conn);
     const result = await conn.execute(
       `SELECT tipo, valor, data_hora, status
        FROM (

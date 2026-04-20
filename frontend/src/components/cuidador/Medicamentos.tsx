@@ -1,12 +1,16 @@
 import { useState, useEffect } from 'react';
 import type { Medicamento } from '../../types';
 import api from '../../services/api';
+import { useVinculo } from '../../contexts/VinculoContext';
 import Card from '../common/Card';
 import Button from '../common/Button';
 import Input from '../common/Input';
 import Header from '../layout/Header';
 
 export default function MedicamentosCuidador() {
+  const { pacienteSelecionado } = useVinculo();
+  const pid = pacienteSelecionado?.id;
+
   const [medicamentos, setMedicamentos] = useState<Medicamento[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ nome: '', dosagem: '', horarios: '' });
@@ -15,18 +19,19 @@ export default function MedicamentosCuidador() {
   const [loading, setLoading] = useState(false);
 
   async function carregar() {
-    const res = await api.get('/medicamentos');
+    if (!pid) return;
+    const res = await api.get('/medicamentos', { params: { pacienteId: pid } });
     setMedicamentos(res.data);
   }
 
-  useEffect(() => { carregar(); }, []);
+  useEffect(() => { carregar(); }, [pid]);
 
   async function salvar() {
-    if (!form.nome.trim()) return;
+    if (!form.nome.trim() || !pid) return;
     setLoading(true);
     try {
       const horarios = form.horarios.split(',').map(h => h.trim()).filter(Boolean);
-      await api.post('/medicamentos', { nome: form.nome, dosagem: form.dosagem, horarios });
+      await api.post('/medicamentos', { nome: form.nome, dosagem: form.dosagem, horarios, pacienteId: pid });
       setForm({ nome: '', dosagem: '', horarios: '' });
       setShowForm(false);
       await carregar();
@@ -41,14 +46,12 @@ export default function MedicamentosCuidador() {
   }
 
   async function salvarEdicao(m: Medicamento) {
+    if (!pid) return;
     setLoading(true);
     try {
       const horarios = editForm.horarios.split(',').map(h => h.trim()).filter(Boolean);
       await api.put(`/medicamentos/${m.id}`, {
-        nome: editForm.nome,
-        dosagem: editForm.dosagem,
-        horarios,
-        ativo: true,
+        nome: editForm.nome, dosagem: editForm.dosagem, horarios, ativo: true, pacienteId: pid,
       });
       setEditingId(null);
       await carregar();
@@ -58,8 +61,8 @@ export default function MedicamentosCuidador() {
   }
 
   async function remover(id: number) {
-    if (!confirm('Remover este medicamento?')) return;
-    await api.delete(`/medicamentos/${id}`);
+    if (!pid || !confirm('Remover este medicamento?')) return;
+    await api.delete(`/medicamentos/${id}`, { params: { pacienteId: pid } });
     await carregar();
   }
 
@@ -122,24 +125,16 @@ export default function MedicamentosCuidador() {
                     )}
                   </div>
                   <div style={{ display: 'flex', gap: '6px' }}>
-                    <button
-                      onClick={() => iniciarEdicao(m)}
-                      title="Editar"
-                      style={{
-                        padding: '6px 10px', borderRadius: '8px',
-                        border: '1px solid #e5e7eb', background: '#f9fafb',
-                        cursor: 'pointer', fontSize: '14px', color: '#6b7280',
-                      }}
-                    >✏️</button>
-                    <button
-                      onClick={() => remover(m.id)}
-                      title="Remover"
-                      style={{
-                        padding: '6px 10px', borderRadius: '8px',
-                        border: '1px solid #fee2e2', background: '#fff5f5',
-                        cursor: 'pointer', fontSize: '14px', color: '#dc2626',
-                      }}
-                    >🗑️</button>
+                    <button onClick={() => iniciarEdicao(m)} title="Editar" style={{
+                      padding: '6px 10px', borderRadius: '8px',
+                      border: '1px solid #e5e7eb', background: '#f9fafb',
+                      cursor: 'pointer', fontSize: '14px', color: '#6b7280',
+                    }}>✏️</button>
+                    <button onClick={() => remover(m.id)} title="Remover" style={{
+                      padding: '6px 10px', borderRadius: '8px',
+                      border: '1px solid #fee2e2', background: '#fff5f5',
+                      cursor: 'pointer', fontSize: '14px', color: '#dc2626',
+                    }}>🗑️</button>
                   </div>
                 </div>
               )}

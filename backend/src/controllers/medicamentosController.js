@@ -1,11 +1,12 @@
 const { getConnection } = require('../config/database');
 const oracledb = require('oracledb');
+const { resolveTargetId } = require('../utils/resolveTarget');
 
 async function getMedicamentos(req, res, next) {
-  const usuarioId = req.user.id;
   let conn;
   try {
     conn = await getConnection();
+    const usuarioId = await resolveTargetId(req, conn);
     const result = await conn.execute(
       `SELECT id, nome, dosagem, horarios, ativo, criado_em
        FROM medicamentos WHERE usuario_id = :u_id AND ativo = 1 ORDER BY nome`,
@@ -27,11 +28,11 @@ async function getMedicamentos(req, res, next) {
 }
 
 async function createMedicamento(req, res, next) {
-  const usuarioId = req.user.id;
   const { nome, dosagem, horarios } = req.body;
   let conn;
   try {
     conn = await getConnection();
+    const usuarioId = await resolveTargetId(req, conn);
     const result = await conn.execute(
       `INSERT INTO medicamentos (usuario_id, nome, dosagem, horarios)
        VALUES (:u_id, :nome, :dosagem, :horarios)
@@ -53,12 +54,12 @@ async function createMedicamento(req, res, next) {
 }
 
 async function updateMedicamento(req, res, next) {
-  const usuarioId = req.user.id;
   const { id } = req.params;
   const { nome, dosagem, horarios, ativo } = req.body;
   let conn;
   try {
     conn = await getConnection();
+    const usuarioId = await resolveTargetId(req, conn);
     await conn.execute(
       `UPDATE medicamentos SET nome = :nome, dosagem = :dosagem,
        horarios = :horarios, ativo = :ativo
@@ -81,11 +82,11 @@ async function updateMedicamento(req, res, next) {
 }
 
 async function deleteMedicamento(req, res, next) {
-  const usuarioId = req.user.id;
   const { id } = req.params;
   let conn;
   try {
     conn = await getConnection();
+    const usuarioId = await resolveTargetId(req, conn);
     await conn.execute(
       `UPDATE medicamentos SET ativo = 0 WHERE id = :med_id AND usuario_id = :u_id`,
       { med_id: parseInt(id), u_id: usuarioId }
@@ -98,14 +99,13 @@ async function deleteMedicamento(req, res, next) {
   }
 }
 
-// Retorna um registro por medicamento com status individual por horário.
 // horariosStatus: { "08:00": true, "20:00": false }
-// tomado: true somente se TODOS os horários foram tomados (usado no Dashboard)
+// tomado: true somente se TODOS os horários foram tomados
 async function getStatusDia(req, res, next) {
-  const usuarioId = req.user.id;
   let conn;
   try {
     conn = await getConnection();
+    const usuarioId = await resolveTargetId(req, conn);
 
     const medsResult = await conn.execute(
       `SELECT id, nome, dosagem, horarios
@@ -120,7 +120,6 @@ async function getStatusDia(req, res, next) {
       { u_id: usuarioId }
     );
 
-    // lookup: "medId_horario" → tomado bool
     const logMap = {};
     for (const row of logsResult.rows) {
       logMap[`${row.MEDICAMENTO_ID}_${row.HORARIO_PREVISTO}`] = row.TOMADO === 1;

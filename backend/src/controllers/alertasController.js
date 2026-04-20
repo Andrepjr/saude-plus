@@ -1,5 +1,6 @@
 const OpenAI = require('openai');
 const { getConnection } = require('../config/database');
+const { resolveTargetId } = require('../utils/resolveTarget');
 
 let _openai = null;
 function getOpenAI() {
@@ -8,10 +9,10 @@ function getOpenAI() {
 }
 
 async function getAlertas(req, res, next) {
-  const usuarioId = req.user.id;
   let conn;
   try {
     conn = await getConnection();
+    const usuarioId = await resolveTargetId(req, conn);
 
     const glicoseAlertas = await conn.execute(
       `SELECT 'GLICOSE' AS tipo, valor, data_hora, status
@@ -74,10 +75,10 @@ async function getAlertas(req, res, next) {
 }
 
 async function getAnaliseIA(req, res, next) {
-  const usuarioId = req.user.id;
   let conn;
   try {
     conn = await getConnection();
+    const usuarioId = await resolveTargetId(req, conn);
 
     const glicose = await conn.execute(
       `SELECT valor, data_hora, status FROM registros_saude
