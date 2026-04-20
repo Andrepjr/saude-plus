@@ -53,3 +53,117 @@ input, textarea, select {
   background: var(--cinza-borda);
   border-radius: 3px;
 }
+
+/* ── ChatAbby animations ─────────────────────────────────────── */
+@keyframes abby-pulse {
+  0%   { transform: scale(.6); opacity: .6; }
+  100% { transform: scale(2.2); opacity: 0; }
+}
+@keyframes abby-typing {
+  0%, 60%, 100% { transform: translateY(0);   opacity: .4; }
+  30%            { transform: translateY(-4px); opacity: 1;  }
+}
+@keyframes abby-msg-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes abby-wave {
+  0%,60%,100% { transform: rotate(0);   }
+  10%          { transform: rotate(14deg); }
+  20%          { transform: rotate(-8deg); }
+  30%          { transform: rotate(14deg); }
+  40%          { transform: rotate(-4deg); }
+  50%          { transform: rotate(10deg); }
+}
+@keyframes abby-rec-pulse {
+  0%,100% { box-shadow: 0 0 0 0   rgba(220,38,38,.4); }
+  50%      { box-shadow: 0 0 0 6px rgba(220,38,38,0);  }
+}
+
+.abby-online-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: #22c55e; position: relative; flex-shrink: 0;
+}
+.abby-online-dot::after {
+  content: ""; position: absolute; inset: -3px; border-radius: 50%;
+  background: #22c55e; opacity: .5;
+  animation: abby-pulse 1.6s ease-out infinite;
+}
+.abby-typing-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: #8ea69c;
+  animation: abby-typing 1.2s ease-in-out infinite;
+}
+.abby-typing-dot:nth-child(2) { animation-delay: .15s; }
+.abby-typing-dot:nth-child(3) { animation-delay: .3s; }
+
+.abby-msg-group { animation: abby-msg-in .35s cubic-bezier(.2,.8,.2,1) both; }
+
+.abby-wave { display: inline-block; transform-origin: 70% 70%; }
+
+.abby-input-bar:focus-within {
+  border-color: rgba(34,197,94,.5) !important;
+  box-shadow: 0 0 0 4px rgba(34,197,94,.1) !important;
+}
+
+.abby-send-btn:not(:disabled):hover { transform: scale(1.05); }
+.abby-send-btn:not(:disabled):active { transform: scale(.94); }
+
+.abby-mic-btn:hover { background: rgba(13,74,58,.1) !important; }
+.abby-mic-btn.recording {
+  background: #fee2e2 !important; color: #dc2626 !important;
+  animation: abby-rec-pulse 1s ease-in-out infinite;
+}
+
+.abby-chip:hover {
+  background: rgba(34,197,94,.12) !important;
+  border-color: rgba(34,197,94,.3) !important;
+  color: #0a2e25 !important;
+}
+
+.abby-chat::-webkit-scrollbar { width: 4px; }
+.abby-chat::-webkit-scrollbar-thumb {
+  background: rgba(13,74,58,.15); border-radius: 4px;
+}
+
+/* ── Desktop header ──────────────────────────────────────────────────── */
+.saude-greeting-desktop { display: none; }
+.saude-greeting-mobile  { display: block; }
+
+@media (min-width: 768px) {
+  .saude-header {
+    padding: 0 24px !important;
+    min-height: 64px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+  }
+  .saude-greeting-mobile  { display: none !important; }
+  .saude-greeting-desktop {
+    display: flex !important;
+    align-items: center;
+    gap: 6px;
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #fff;
+    font-size: 15px;
+    font-weight: 600;
+    white-space: nowrap;
+    pointer-events: none;
+    letter-spacing: -.01em;
+  }
+}
+
+/* ── Desktop chat centering ──────────────────────────────────────────── */
+@media (min-width: 768px) {
+  .abby-inner {
+    max-width: 860px;
+    margin: 0 auto;
+    width: 100%;
+  }
+  .abby-section-pad {
+    padding-left: 28px !important;
+    padding-right: 28px !important;
+  }
+}

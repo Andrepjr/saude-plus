@@ -4,7 +4,18 @@
       "Bash(curl -s -X POST http://localhost:3001/api/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"paciente@teste.com\",\"senha\":\"123456\"}')",
       "Bash(timeout 15 npm run dev)",
       "Bash(timeout 12 npm run dev)",
-      "Bash(node -e ' *)"
+      "Bash(node -e ' *)",
+      "WebFetch(domain:api.anthropic.com)",
+      "Bash(tar -xf design.html -C /tmp/design)",
+      "Bash(mkdir -p /tmp/design)",
+      "Read(//tmp/design/saude/**)",
+      "Bash(mkdir -p \"C:/Users/andre/AppData/Local/Temp/saude-design\")",
+      "Bash(tar -xf \"C:/Users/andre/.claude/projects/c--Users-andre-OneDrive--rea-de-Trabalho-saude-plus/feb3aac7-b35a-44a1-aac7-7f715fdc86af/tool-results/design.html\" -C \"C:/Users/andre/AppData/Local/Temp/saude-design\")",
+      "Read(//c/Users/andre/AppData/Local/Temp/saude-design/saude/**)",
+      "Read(//c/Users/andre/**)",
+      "Bash(mkdir -p saude-design)",
+      "Bash(tar -xf \"/c/Users/andre/.claude/projects/c--Users-andre-OneDrive--rea-de-Trabalho-saude-plus/feb3aac7-b35a-44a1-aac7-7f715fdc86af/tool-results/design.html\" -C ~/saude-design)",
+      "Read(//c/Users/andre/saude-design/saude/**)"
     ]
   }
 }

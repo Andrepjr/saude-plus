@@ -1,13 +1,117 @@
 import { useState, useEffect, useRef } from 'react';
 import type { MensagemChat } from '../../types';
 import api from '../../services/api';
-import Button from '../common/Button';
 
+// ── SVG icons ─────────────────────────────────────────────────────────
+const SendIcon = () => (
+  <svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+    <path d="M5 12l14-7-5 14-3-6-6-1z" fill="currentColor" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
+  </svg>
+);
+const MicIcon = () => (
+  <svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+    <rect x="9" y="3" width="6" height="12" rx="3" fill="currentColor"/>
+    <path d="M5 11a7 7 0 0014 0M12 18v3" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+  </svg>
+);
+const InfoIcon = () => (
+  <svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+    <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2"/>
+    <path d="M12 11v5M12 7.5v.01" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"/>
+  </svg>
+);
+const DropIcon = () => (
+  <svg width={11} height={11} viewBox="0 0 24 24" fill="none">
+    <path d="M12 3c3 4.5 6 8 6 11a6 6 0 01-12 0c0-3 3-6.5 6-11z" fill="currentColor"/>
+  </svg>
+);
+
+// ── Abby robot avatar SVG ─────────────────────────────────────────────
+function AbbyRobot({ size = 52 }: { size?: number }) {
+  const s = size * 0.62;
+  return (
+    <svg width={s} height={s} viewBox="0 0 40 40" fill="none" style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,.15))' }}>
+      <circle cx="20" cy="5" r="2" fill="#fff"/>
+      <line x1="20" y1="7" x2="20" y2="11" stroke="#fff" strokeWidth="1.8"/>
+      <rect x="7" y="11" width="26" height="22" rx="8" fill="#fff" fillOpacity=".95"/>
+      <circle cx="15" cy="21" r="2.2" fill="#0d4a3a"/>
+      <circle cx="25" cy="21" r="2.2" fill="#0d4a3a"/>
+      <circle cx="15.7" cy="20.3" r=".6" fill="#fff"/>
+      <circle cx="25.7" cy="20.3" r=".6" fill="#fff"/>
+      <path d="M15 26c1.5 1.5 3.2 2.2 5 2.2s3.5-.7 5-2.2" stroke="#0d4a3a" strokeWidth="1.6" strokeLinecap="round" fill="none"/>
+      <rect x="4" y="18" width="3" height="6" rx="1.5" fill="#fff" fillOpacity=".7"/>
+      <rect x="33" y="18" width="3" height="6" rx="1.5" fill="#fff" fillOpacity=".7"/>
+    </svg>
+  );
+}
+
+function AbbyMiniAvatar() {
+  return (
+    <div style={{
+      width: 28, height: 28, borderRadius: '10px', flexShrink: 0,
+      background: 'linear-gradient(135deg, #22c55e 0%, #0d4a3a 100%)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      boxShadow: '0 2px 6px rgba(26,138,106,.3)',
+    }}>
+      <AbbyRobot size={28} />
+    </div>
+  );
+}
+
+// ── Typing indicator ──────────────────────────────────────────────────
+function TypingIndicator() {
+  return (
+    <div className="abby-msg-group" style={{ display: 'flex', flexDirection: 'column', gap: 4, maxWidth: '85%', alignSelf: 'flex-start', alignItems: 'flex-start' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
+        <AbbyMiniAvatar />
+        <div style={{
+          padding: '11px 14px', borderRadius: '16px', borderBottomLeftRadius: '6px',
+          background: '#fff', border: '1px solid rgba(13,74,58,.06)',
+          boxShadow: '0 1px 2px rgba(13,74,58,.04), 0 2px 8px rgba(13,74,58,.05)',
+        }}>
+          <div style={{ display: 'flex', gap: 3, alignItems: 'center', padding: '4px 2px' }}>
+            <span className="abby-typing-dot" />
+            <span className="abby-typing-dot" />
+            <span className="abby-typing-dot" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Timestamp ─────────────────────────────────────────────────────────
+function Timestamp({ side, time }: { side: 'bot' | 'me'; time?: string }) {
+  if (!time) return null;
+  return (
+    <div style={{
+      fontSize: '10.5px', color: '#6b7680', fontWeight: 500,
+      paddingLeft: side === 'bot' ? 36 : 0,
+      paddingRight: side === 'me' ? 0 : 0,
+      display: 'flex', alignItems: 'center', gap: 4,
+      justifyContent: side === 'me' ? 'flex-end' : 'flex-start',
+    }}>
+      <span>{time}</span>
+      {side === 'me' && <span style={{ color: '#22c55e', fontSize: 11 }}>✓✓</span>}
+    </div>
+  );
+}
+
+// ── Quick chips ───────────────────────────────────────────────────────
+const QUICK_CHIPS = [
+  { label: 'Minha glicose', text: 'Como está minha glicose?' },
+  { label: '💊 Remédios de hoje', text: 'Quais meus remédios de hoje?' },
+  { label: '❤️ Pressão arterial', text: 'Como está minha pressão arterial?' },
+];
+
+// ── Main component ────────────────────────────────────────────────────
 export default function ChatAbby() {
   const [mensagens, setMensagens] = useState<MensagemChat[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [inputFocused, setInputFocused] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     api.get('/chat/historico').then(res => {
@@ -24,134 +128,291 @@ export default function ChatAbby() {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [mensagens]);
+  }, [mensagens, loading]);
 
-  async function enviar() {
-    if (!input.trim() || loading) return;
-    const texto = input.trim();
+  function nowTime() {
+    const d = new Date();
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  }
+
+  async function enviar(texto?: string) {
+    const msg = (texto ?? input).trim();
+    if (!msg || loading) return;
     setInput('');
-    setMensagens(prev => [...prev, { role: 'user', content: texto }]);
+    if (textareaRef.current) textareaRef.current.style.height = '22px';
+    const time = nowTime();
+    setMensagens(prev => [...prev, { role: 'user', content: msg, createdAt: time } as MensagemChat]);
     setLoading(true);
     try {
-      const res = await api.post('/chat/message', { mensagem: texto });
-      setMensagens(prev => [...prev, { role: 'assistant', content: res.data.resposta }]);
+      const res = await api.post('/chat/message', { mensagem: msg });
+      setMensagens(prev => [...prev, { role: 'assistant', content: res.data.resposta, createdAt: nowTime() } as MensagemChat]);
     } catch {
-      setMensagens(prev => [...prev, { role: 'assistant', content: 'Desculpe, tive um problema. Tente novamente.' }]);
+      setMensagens(prev => [...prev, { role: 'assistant', content: 'Desculpe, tive um problema. Tente novamente.' } as MensagemChat]);
     } finally {
       setLoading(false);
     }
   }
 
+  function autosize(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    setInput(e.target.value);
+    e.target.style.height = '22px';
+    e.target.style.height = Math.min(120, e.target.scrollHeight) + 'px';
+  }
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', maxWidth: '680px', margin: '0 auto', width: '100%' }}>
-      {/* Header */}
-      <div style={{
-        background: 'var(--verde-escuro)',
-        padding: '16px 20px',
-        borderRadius: '12px 12px 0 0',
-        display: 'flex', alignItems: 'center', gap: '12px',
-      }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#f8f9fa' }}>
+    <div className="abby-inner" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+
+      {/* ── Abby card ─────────────────────────────────────────────── */}
+      <div className="abby-section-pad" style={{ padding: '12px 14px 0', flexShrink: 0 }}>
         <div style={{
-          width: 44, height: 44, borderRadius: '50%',
-          background: 'var(--verde-claro)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: '20px',
-        }}>🤖</div>
-        <div>
-          <div style={{ color: '#fff', fontWeight: 600, fontSize: '16px' }}>Abby</div>
-          <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: '13px' }}>Assistente de Saúde</div>
-        </div>
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#4ade80' }} />
-          <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: '12px' }}>Online</span>
+          position: 'relative',
+          borderRadius: '18px',
+          padding: '14px',
+          display: 'flex', alignItems: 'center', gap: '12px',
+          background: 'linear-gradient(135deg, rgba(255,255,255,.97) 0%, rgba(232,247,239,.88) 100%)',
+          border: '1px solid rgba(26,138,106,.12)',
+          boxShadow: '0 6px 20px rgba(13,74,58,.08), 0 2px 6px rgba(13,74,58,.05)',
+        }}>
+          {/* Avatar */}
+          <div style={{
+            width: 52, height: 52, borderRadius: '16px', flexShrink: 0,
+            background: 'linear-gradient(135deg, #22c55e 0%, #0d4a3a 100%)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 4px 12px rgba(26,138,106,.35), inset 0 1px 0 rgba(255,255,255,.25)',
+          }}>
+            <AbbyRobot size={52} />
+          </div>
+
+          {/* Info */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <span style={{ fontWeight: 700, fontSize: '16px', letterSpacing: '-.01em', color: '#0a2e25' }}>
+                Abby
+              </span>
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', gap: '5px',
+                fontSize: '11px', fontWeight: 600, color: '#0a7a49',
+                background: 'rgba(34,197,94,.12)',
+                border: '1px solid rgba(34,197,94,.25)',
+                padding: '3px 8px 3px 7px', borderRadius: '999px',
+              }}>
+                <span className="abby-online-dot" />
+                Online
+              </span>
+            </div>
+            <div style={{ fontSize: '12px', color: '#6b7680', marginTop: '2px' }}>
+              Assistente de Saúde · responde em segundos
+            </div>
+          </div>
+
+          {/* Info button */}
+          <button
+            onClick={() => {}}
+            aria-label="Sobre a Abby"
+            style={{
+              width: 36, height: 36, borderRadius: '12px', flexShrink: 0,
+              background: 'rgba(13,74,58,.06)', border: 'none', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: '#0d4a3a', transition: 'background .15s ease',
+            }}
+          >
+            <InfoIcon />
+          </button>
         </div>
       </div>
 
-      {/* Mensagens */}
-      <div style={{
-        flex: 1,
-        overflowY: 'auto',
-        padding: '20px',
-        background: '#f8fffe',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '12px',
-        minHeight: '400px',
-        maxHeight: '520px',
-      }}>
-        {mensagens.map((msg, i) => (
-          <div key={i} style={{
-            display: 'flex',
-            justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
+      {/* ── Chat messages ─────────────────────────────────────────── */}
+      <div
+        className="abby-chat abby-section-pad"
+        style={{
+          flex: 1, minHeight: 0, overflowY: 'auto',
+          padding: '16px 14px 12px',
+          background: '#f8f9fa',
+          display: 'flex', flexDirection: 'column', gap: '14px',
+          scrollBehavior: 'smooth',
+        }}
+      >
+        {/* Day separator */}
+        <div style={{ alignSelf: 'center' }}>
+          <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: '8px',
+            fontSize: '11px', color: '#6b7680', fontWeight: 500,
+            padding: '4px 10px',
+            background: 'rgba(13,74,58,.04)', borderRadius: '999px',
           }}>
-            {msg.role === 'assistant' && (
-              <div style={{
-                width: 28, height: 28, borderRadius: '50%',
-                background: 'var(--verde-bg)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: '14px', marginRight: '8px', flexShrink: 0, marginTop: '2px',
-              }}>🤖</div>
-            )}
-            <div style={{
-              maxWidth: '72%',
-              padding: '10px 14px',
-              borderRadius: msg.role === 'user' ? '16px 4px 16px 16px' : '4px 16px 16px 16px',
-              background: msg.role === 'user' ? 'var(--verde-medio)' : '#fff',
-              color: msg.role === 'user' ? '#fff' : 'var(--texto-principal)',
-              fontSize: '15px',
-              lineHeight: '1.5',
-              boxShadow: '0 1px 2px rgba(0,0,0,0.08)',
-              border: msg.role === 'assistant' ? '1px solid var(--cinza-borda)' : 'none',
-              whiteSpace: 'pre-wrap',
-            }}>
-              {msg.content}
+            Hoje · {new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+          </span>
+        </div>
+
+        {mensagens.map((msg, i) => {
+          const isBot = msg.role === 'assistant';
+          const prevSameRole = i > 0 && mensagens[i - 1].role === msg.role;
+          const time = msg.createdAt ? String(msg.createdAt).slice(11, 16) || String(msg.createdAt) : undefined;
+
+          if (isBot) {
+            return (
+              <div
+                key={i}
+                className="abby-msg-group"
+                style={{ display: 'flex', flexDirection: 'column', gap: 4, maxWidth: '85%', alignSelf: 'flex-start', alignItems: 'flex-start' }}
+              >
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
+                  {!prevSameRole
+                    ? <AbbyMiniAvatar />
+                    : <div style={{ width: 28, flexShrink: 0, visibility: 'hidden' }}/>
+                  }
+                  <div style={{
+                    padding: '11px 14px',
+                    background: '#fff', color: '#0f1b18',
+                    border: '1px solid rgba(13,74,58,.06)',
+                    borderRadius: '16px', borderBottomLeftRadius: '6px',
+                    boxShadow: '0 1px 2px rgba(13,74,58,.04), 0 2px 8px rgba(13,74,58,.05)',
+                    fontSize: '14.5px', lineHeight: '1.45', letterSpacing: '-.005em',
+                    wordWrap: 'break-word', whiteSpace: 'pre-wrap',
+                  }}>
+                    {msg.content}
+                  </div>
+                </div>
+                <Timestamp side="bot" time={time} />
+              </div>
+            );
+          }
+
+          return (
+            <div
+              key={i}
+              className="abby-msg-group"
+              style={{ display: 'flex', flexDirection: 'column', gap: 4, maxWidth: '85%', alignSelf: 'flex-end', alignItems: 'flex-end' }}
+            >
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, flexDirection: 'row-reverse' }}>
+                <div style={{
+                  padding: '11px 14px',
+                  background: 'linear-gradient(135deg, #1a8a6a 0%, #0d4a3a 100%)',
+                  color: '#fff',
+                  borderRadius: '16px', borderBottomRightRadius: '6px',
+                  boxShadow: '0 2px 8px rgba(13,74,58,.2)',
+                  fontSize: '14.5px', lineHeight: '1.45', letterSpacing: '-.005em',
+                  wordWrap: 'break-word', whiteSpace: 'pre-wrap',
+                }}>
+                  {msg.content}
+                </div>
+              </div>
+              <Timestamp side="me" time={time} />
             </div>
-          </div>
-        ))}
-        {loading && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--verde-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px' }}>🤖</div>
-            <div style={{ padding: '10px 16px', borderRadius: '4px 16px 16px 16px', background: '#fff', border: '1px solid var(--cinza-borda)', color: 'var(--cinza-texto)', fontSize: '20px', letterSpacing: '4px' }}>
-              <span>•••</span>
-            </div>
-          </div>
-        )}
+          );
+        })}
+
+        {loading && <TypingIndicator />}
+
         <div ref={bottomRef} />
       </div>
 
-      {/* Input */}
-      <div style={{
-        padding: '12px 16px',
-        background: '#fff',
-        borderRadius: '0 0 12px 12px',
-        border: '1px solid var(--cinza-borda)',
+      {/* ── Input area ────────────────────────────────────────────── */}
+      <div className="abby-section-pad" style={{
+        flexShrink: 0,
+        padding: '10px 12px 10px',
+        background: 'linear-gradient(180deg, rgba(248,249,250,0) 0%, #f8f9fa 30%)',
         borderTop: 'none',
-        display: 'flex',
-        gap: '8px',
-        alignItems: 'flex-end',
       }}>
-        <textarea
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviar(); } }}
-          placeholder="Digite sua mensagem... (ex: minha glicose está 130)"
-          rows={1}
+        {/* Quick chips */}
+        <div style={{
+          display: 'flex', gap: '6px', marginBottom: '8px',
+          overflowX: 'auto', paddingBottom: '2px',
+          scrollbarWidth: 'none',
+        }}>
+          {QUICK_CHIPS.map(c => (
+            <button
+              key={c.text}
+              className="abby-chip"
+              onClick={() => enviar(c.text)}
+              style={{
+                flexShrink: 0,
+                fontSize: '12px', fontWeight: 500,
+                padding: '6px 10px', borderRadius: '999px',
+                background: 'rgba(13,74,58,.05)', color: '#0d4a3a',
+                border: '1px solid rgba(13,74,58,.08)',
+                cursor: 'pointer', transition: 'all .15s ease',
+                fontFamily: 'inherit',
+                display: 'flex', alignItems: 'center', gap: '4px',
+              }}
+            >
+              {c.label.startsWith('Minha') && <DropIcon />}
+              {c.label.replace('Minha glicose', 'Minha glicose')}
+            </button>
+          ))}
+        </div>
+
+        {/* Input bar */}
+        <div
+          className="abby-input-bar"
           style={{
-            flex: 1,
-            border: '1px solid var(--cinza-borda)',
-            borderRadius: '8px',
-            padding: '10px 14px',
-            fontSize: '15px',
-            resize: 'none',
-            outline: 'none',
-            maxHeight: '100px',
-            overflowY: 'auto',
+            display: 'flex', alignItems: 'center', gap: '8px',
+            background: '#fff',
+            border: inputFocused ? '1px solid rgba(34,197,94,.5)' : '1px solid rgba(13,74,58,.08)',
+            borderRadius: '22px',
+            padding: '6px 6px 6px 14px',
+            boxShadow: inputFocused
+              ? '0 0 0 4px rgba(34,197,94,.1)'
+              : '0 1px 2px rgba(13,74,58,.04), 0 2px 8px rgba(13,74,58,.05)',
+            transition: 'border-color .15s ease, box-shadow .15s ease',
           }}
-        />
-        <Button onClick={enviar} loading={loading} disabled={!input.trim()}>
-          Enviar
-        </Button>
+        >
+          <textarea
+            ref={textareaRef}
+            value={input}
+            onChange={autosize}
+            onFocus={() => setInputFocused(true)}
+            onBlur={() => setInputFocused(false)}
+            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviar(); } }}
+            placeholder="Digite sua mensagem..."
+            rows={1}
+            style={{
+              flex: 1, border: 'none', outline: 'none', background: 'transparent',
+              fontSize: '14.5px', color: '#0f1b18',
+              padding: '8px 0', resize: 'none', lineHeight: '1.4',
+              maxHeight: '120px', minHeight: '22px',
+              fontFamily: "'Inter', sans-serif",
+            }}
+          />
+
+          {/* Mic button */}
+          <button
+            className="abby-mic-btn"
+            aria-label="Gravar áudio"
+            style={{
+              width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
+              border: 'none', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: 'rgba(13,74,58,.06)', color: '#0d4a3a',
+              transition: 'background .15s ease',
+            }}
+          >
+            <MicIcon />
+          </button>
+
+          {/* Send button */}
+          <button
+            className="abby-send-btn"
+            onClick={() => enviar()}
+            disabled={!input.trim() || loading}
+            aria-label="Enviar"
+            style={{
+              width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
+              border: 'none', cursor: !input.trim() || loading ? 'not-allowed' : 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: 'linear-gradient(135deg, #22c55e 0%, #1a8a6a 100%)',
+              color: '#fff',
+              boxShadow: !input.trim() || loading ? 'none' : '0 2px 8px rgba(26,138,106,.35)',
+              opacity: !input.trim() || loading ? 0.35 : 1,
+              transition: 'opacity .15s ease, transform .1s ease',
+            }}
+          >
+            <SendIcon />
+          </button>
+        </div>
       </div>
+    </div>
     </div>
   );
 }
