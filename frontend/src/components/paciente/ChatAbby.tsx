@@ -2,6 +2,23 @@ import { useState, useEffect, useRef } from 'react';
 import type { MensagemChat } from '../../types';
 import api from '../../services/api';
 
+// ── Web Speech API typing ─────────────────────────────────────────────
+interface ISpeechRecognition {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  start(): void;
+  stop(): void;
+  abort(): void;
+  onresult: ((e: { results: { [k: number]: { [k: number]: { transcript: string } } } }) => void) | null;
+  onend:    (() => void) | null;
+  onerror:  ((e: { error: string }) => void) | null;
+}
+function getSpeechRecognition(): (new () => ISpeechRecognition) | null {
+  const w = window as Record<string, unknown>;
+  return (w['SpeechRecognition'] || w['webkitSpeechRecognition'] || null) as (new () => ISpeechRecognition) | null;
+}
+
 // ── SVG icons ─────────────────────────────────────────────────────────
 const SendIcon = () => (
   <svg width={18} height={18} viewBox="0 0 24 24" fill="none">
@@ -23,6 +40,15 @@ const InfoIcon = () => (
 const DropIcon = () => (
   <svg width={11} height={11} viewBox="0 0 24 24" fill="none">
     <path d="M12 3c3 4.5 6 8 6 11a6 6 0 01-12 0c0-3 3-6.5 6-11z" fill="currentColor"/>
+  </svg>
+);
+const SpeakerIcon = ({ active }: { active: boolean }) => (
+  <svg width={13} height={13} viewBox="0 0 24 24" fill="none">
+    <path d="M11 5L6 9H2v6h4l5 4V5z" fill="currentColor"/>
+    {active
+      ? <path d="M19.07 4.93a10 10 0 010 14.14M15.54 8.46a5 5 0 010 7.07" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+      : <path d="M15.54 8.46a5 5 0 010 7.07" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+    }
   </svg>
 );
 
@@ -80,26 +106,9 @@ function TypingIndicator() {
   );
 }
 
-// ── Timestamp ─────────────────────────────────────────────────────────
-function Timestamp({ side, time }: { side: 'bot' | 'me'; time?: string }) {
-  if (!time) return null;
-  return (
-    <div style={{
-      fontSize: '10.5px', color: '#6b7680', fontWeight: 500,
-      paddingLeft: side === 'bot' ? 36 : 0,
-      paddingRight: side === 'me' ? 0 : 0,
-      display: 'flex', alignItems: 'center', gap: 4,
-      justifyContent: side === 'me' ? 'flex-end' : 'flex-start',
-    }}>
-      <span>{time}</span>
-      {side === 'me' && <span style={{ color: '#22c55e', fontSize: 11 }}>✓✓</span>}
-    </div>
-  );
-}
-
 // ── Quick chips ───────────────────────────────────────────────────────
 const QUICK_CHIPS = [
-  { label: 'Minha glicose', text: 'Como está minha glicose?' },
+  { label: 'Minha glicose',    text: 'Como está minha glicose?' },
   { label: '💊 Remédios de hoje', text: 'Quais meus remédios de hoje?' },
   { label: '❤️ Pressão arterial', text: 'Como está minha pressão arterial?' },
 ];
@@ -107,12 +116,31 @@ const QUICK_CHIPS = [
 // ── Main component ────────────────────────────────────────────────────
 export default function ChatAbby() {
   const [mensagens, setMensagens] = useState<MensagemChat[]>([]);
-  const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [input, setInput]         = useState('');
+  const [loading, setLoading]     = useState(false);
   const [inputFocused, setInputFocused] = useState(false);
-  const bottomRef = useRef<HTMLDivElement>(null);
+
+  // TTS state
+  const [playingText, setPlayingText] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // STT state
+  const [recording, setRecording] = useState(false);
+  const recognitionRef = useRef<ISpeechRecognition | null>(null);
+  const srSupported = !!getSpeechRecognition();
+
+  const bottomRef   = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // ── Cleanup on unmount ──────────────────────────────────────────────
+  useEffect(() => {
+    return () => {
+      audioRef.current?.pause();
+      recognitionRef.current?.abort();
+    };
+  }, []);
+
+  // ── Load history ────────────────────────────────────────────────────
   useEffect(() => {
     api.get('/chat/historico').then(res => {
       if (res.data.length === 0) {
@@ -130,6 +158,81 @@ export default function ChatAbby() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [mensagens, loading]);
 
+  // ── TTS ─────────────────────────────────────────────────────────────
+  async function speakText(text: string) {
+    // Toggle off if same text is already playing/loading
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+    if (playingText === text) {
+      setPlayingText(null);
+      return;
+    }
+
+    setPlayingText(text);
+    try {
+      const res = await api.post('/tts', { text }, { responseType: 'arraybuffer' });
+      const blob = new Blob([res.data], { type: 'audio/mpeg' });
+      const url  = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      audio.onended = () => {
+        setPlayingText(null);
+        URL.revokeObjectURL(url);
+        audioRef.current = null;
+      };
+      audio.onerror = () => {
+        setPlayingText(null);
+        URL.revokeObjectURL(url);
+        audioRef.current = null;
+      };
+      await audio.play().catch(() => {
+        // autoplay blocked — user can click the speaker button to replay
+        setPlayingText(null);
+      });
+    } catch {
+      setPlayingText(null);
+    }
+  }
+
+  // ── STT ─────────────────────────────────────────────────────────────
+  function toggleMic() {
+    if (recording) {
+      recognitionRef.current?.stop();
+      return;
+    }
+
+    const SR = getSpeechRecognition();
+    if (!SR) return;
+
+    const recognition = new SR();
+    recognition.lang = 'pt-BR';
+    recognition.continuous = false;
+    recognition.interimResults = false;
+
+    recognition.onresult = (e) => {
+      const transcript = e.results[0][0].transcript;
+      setInput(transcript);
+      if (textareaRef.current) {
+        textareaRef.current.style.height = '22px';
+        textareaRef.current.style.height = Math.min(120, textareaRef.current.scrollHeight) + 'px';
+      }
+    };
+
+    recognition.onerror = (e) => {
+      if (e.error !== 'aborted') console.error('STT error:', e.error);
+      setRecording(false);
+    };
+
+    recognition.onend = () => setRecording(false);
+
+    recognitionRef.current = recognition;
+    recognition.start();
+    setRecording(true);
+  }
+
+  // ── Send message ─────────────────────────────────────────────────────
   function nowTime() {
     const d = new Date();
     return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
@@ -138,6 +241,13 @@ export default function ChatAbby() {
   async function enviar(texto?: string) {
     const msg = (texto ?? input).trim();
     if (!msg || loading) return;
+
+    // Stop recording if active
+    if (recording) {
+      recognitionRef.current?.stop();
+      setRecording(false);
+    }
+
     setInput('');
     if (textareaRef.current) textareaRef.current.style.height = '22px';
     const time = nowTime();
@@ -145,7 +255,9 @@ export default function ChatAbby() {
     setLoading(true);
     try {
       const res = await api.post('/chat/message', { mensagem: msg });
-      setMensagens(prev => [...prev, { role: 'assistant', content: res.data.resposta, createdAt: nowTime() } as MensagemChat]);
+      const resposta: string = res.data.resposta;
+      setMensagens(prev => [...prev, { role: 'assistant', content: resposta, createdAt: nowTime() } as MensagemChat]);
+      speakText(resposta); // auto-play Abby's response
     } catch {
       setMensagens(prev => [...prev, { role: 'assistant', content: 'Desculpe, tive um problema. Tente novamente.' } as MensagemChat]);
     } finally {
@@ -159,6 +271,7 @@ export default function ChatAbby() {
     e.target.style.height = Math.min(120, e.target.scrollHeight) + 'px';
   }
 
+  // ── Render ────────────────────────────────────────────────────────────
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#f8f9fa' }}>
     <div className="abby-inner" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
@@ -249,6 +362,7 @@ export default function ChatAbby() {
           const isBot = msg.role === 'assistant';
           const prevSameRole = i > 0 && mensagens[i - 1].role === msg.role;
           const time = msg.createdAt ? String(msg.createdAt).slice(11, 16) || String(msg.createdAt) : undefined;
+          const isPlaying = playingText === msg.content;
 
           if (isBot) {
             return (
@@ -274,7 +388,21 @@ export default function ChatAbby() {
                     {msg.content}
                   </div>
                 </div>
-                <Timestamp side="bot" time={time} />
+
+                {/* Timestamp + speaker button */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingLeft: 36 }}>
+                  {time && (
+                    <span style={{ fontSize: '10.5px', color: '#6b7680', fontWeight: 500 }}>{time}</span>
+                  )}
+                  <button
+                    className={`abby-speak-btn${isPlaying ? ' playing' : ''}`}
+                    onClick={() => speakText(msg.content)}
+                    title={isPlaying ? 'Parar' : 'Ouvir'}
+                    aria-label={isPlaying ? 'Parar áudio' : 'Ouvir mensagem'}
+                  >
+                    <SpeakerIcon active={isPlaying} />
+                  </button>
+                </div>
               </div>
             );
           }
@@ -298,13 +426,17 @@ export default function ChatAbby() {
                   {msg.content}
                 </div>
               </div>
-              <Timestamp side="me" time={time} />
+              {time && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '10.5px', color: '#6b7680', fontWeight: 500 }}>
+                  <span>{time}</span>
+                  <span style={{ color: '#22c55e', fontSize: 11 }}>✓✓</span>
+                </div>
+              )}
             </div>
           );
         })}
 
         {loading && <TypingIndicator />}
-
         <div ref={bottomRef} />
       </div>
 
@@ -338,7 +470,7 @@ export default function ChatAbby() {
               }}
             >
               {c.label.startsWith('Minha') && <DropIcon />}
-              {c.label.replace('Minha glicose', 'Minha glicose')}
+              {c.label}
             </button>
           ))}
         </div>
@@ -365,7 +497,7 @@ export default function ChatAbby() {
             onFocus={() => setInputFocused(true)}
             onBlur={() => setInputFocused(false)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviar(); } }}
-            placeholder="Digite sua mensagem..."
+            placeholder={recording ? 'Ouvindo...' : 'Digite sua mensagem...'}
             rows={1}
             style={{
               flex: 1, border: 'none', outline: 'none', background: 'transparent',
@@ -378,14 +510,19 @@ export default function ChatAbby() {
 
           {/* Mic button */}
           <button
-            className="abby-mic-btn"
-            aria-label="Gravar áudio"
+            className={`abby-mic-btn${recording ? ' recording' : ''}`}
+            onClick={toggleMic}
+            aria-label={recording ? 'Parar gravação' : 'Gravar áudio'}
+            title={!srSupported ? 'Microfone não suportado neste navegador' : recording ? 'Parar' : 'Falar'}
+            disabled={!srSupported}
             style={{
               width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
-              border: 'none', cursor: 'pointer',
+              border: 'none', cursor: srSupported ? 'pointer' : 'not-allowed',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: 'rgba(13,74,58,.06)', color: '#0d4a3a',
-              transition: 'background .15s ease',
+              background: recording ? '#fee2e2' : 'rgba(13,74,58,.06)',
+              color: recording ? '#dc2626' : '#0d4a3a',
+              transition: 'background .15s ease, color .15s ease',
+              opacity: srSupported ? 1 : 0.4,
             }}
           >
             <MicIcon />
