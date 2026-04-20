@@ -1,0 +1,33 @@
+# Dependências
+node_modules/
+
+# Variáveis de ambiente
+.env
+.env.local
+.env.*.local
+
+# Oracle Wallet (certificados e credenciais mTLS)
+backend/wallet/
+
+# Chaves, certificados e arquivos sensíveis
+*.pem
+*.p12
+*.jks
+*.sso
+*.key
+*.crt
+*.pfx
+ojdbc.properties
+
+# Build do frontend
+frontend/dist/
+frontend/build/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.vscode/settings.json
