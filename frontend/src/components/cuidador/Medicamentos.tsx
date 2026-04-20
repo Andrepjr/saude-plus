@@ -10,6 +10,8 @@ export default function MedicamentosCuidador() {
   const [medicamentos, setMedicamentos] = useState<Medicamento[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ nome: '', dosagem: '', horarios: '' });
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editForm, setEditForm] = useState({ nome: '', dosagem: '', horarios: '' });
   const [loading, setLoading] = useState(false);
 
   async function carregar() {
@@ -27,6 +29,28 @@ export default function MedicamentosCuidador() {
       await api.post('/medicamentos', { nome: form.nome, dosagem: form.dosagem, horarios });
       setForm({ nome: '', dosagem: '', horarios: '' });
       setShowForm(false);
+      await carregar();
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function iniciarEdicao(m: Medicamento) {
+    setEditingId(m.id);
+    setEditForm({ nome: m.nome, dosagem: m.dosagem || '', horarios: m.horarios.join(', ') });
+  }
+
+  async function salvarEdicao(m: Medicamento) {
+    setLoading(true);
+    try {
+      const horarios = editForm.horarios.split(',').map(h => h.trim()).filter(Boolean);
+      await api.put(`/medicamentos/${m.id}`, {
+        nome: editForm.nome,
+        dosagem: editForm.dosagem,
+        horarios,
+        ativo: true,
+      });
+      setEditingId(null);
       await carregar();
     } finally {
       setLoading(false);
@@ -70,24 +94,55 @@ export default function MedicamentosCuidador() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           {medicamentos.map(m => (
             <Card key={m.id} style={{ padding: '14px 18px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: '15px' }}>💊 {m.nome}</div>
-                  {m.dosagem && <div style={{ color: 'var(--cinza-texto)', fontSize: '13px' }}>{m.dosagem}</div>}
-                  {m.horarios.length > 0 && (
-                    <div style={{ display: 'flex', gap: '6px', marginTop: '6px', flexWrap: 'wrap' }}>
-                      {m.horarios.map(h => (
-                        <span key={h} style={{
-                          padding: '2px 8px', borderRadius: '12px',
-                          background: 'var(--verde-bg)', color: 'var(--verde-escuro)',
-                          fontSize: '12px', fontWeight: 500,
-                        }}>⏰ {h}</span>
-                      ))}
-                    </div>
-                  )}
+              {editingId === m.id ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <Input label="Nome" value={editForm.nome} onChange={e => setEditForm(p => ({ ...p, nome: e.target.value }))} />
+                  <Input label="Dosagem" value={editForm.dosagem} onChange={e => setEditForm(p => ({ ...p, dosagem: e.target.value }))} />
+                  <Input label="Horários (separados por vírgula)" value={editForm.horarios} onChange={e => setEditForm(p => ({ ...p, horarios: e.target.value }))} />
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <Button onClick={() => salvarEdicao(m)} loading={loading} size="sm">Salvar</Button>
+                    <Button onClick={() => setEditingId(null)} variant="secondary" size="sm">Cancelar</Button>
+                  </div>
                 </div>
-                <Button onClick={() => remover(m.id)} variant="danger" size="sm">Remover</Button>
-              </div>
+              ) : (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: '15px' }}>💊 {m.nome}</div>
+                    {m.dosagem && <div style={{ color: 'var(--cinza-texto)', fontSize: '13px' }}>{m.dosagem}</div>}
+                    {m.horarios.length > 0 && (
+                      <div style={{ display: 'flex', gap: '6px', marginTop: '6px', flexWrap: 'wrap' }}>
+                        {m.horarios.map(h => (
+                          <span key={h} style={{
+                            padding: '2px 8px', borderRadius: '12px',
+                            background: 'var(--verde-bg)', color: 'var(--verde-escuro)',
+                            fontSize: '12px', fontWeight: 500,
+                          }}>⏰ {h}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <button
+                      onClick={() => iniciarEdicao(m)}
+                      title="Editar"
+                      style={{
+                        padding: '6px 10px', borderRadius: '8px',
+                        border: '1px solid #e5e7eb', background: '#f9fafb',
+                        cursor: 'pointer', fontSize: '14px', color: '#6b7280',
+                      }}
+                    >✏️</button>
+                    <button
+                      onClick={() => remover(m.id)}
+                      title="Remover"
+                      style={{
+                        padding: '6px 10px', borderRadius: '8px',
+                        border: '1px solid #fee2e2', background: '#fff5f5',
+                        cursor: 'pointer', fontSize: '14px', color: '#dc2626',
+                      }}
+                    >🗑️</button>
+                  </div>
+                </div>
+              )}
             </Card>
           ))}
         </div>

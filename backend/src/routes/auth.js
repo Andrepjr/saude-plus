@@ -5,7 +5,7 @@ const authMiddleware = require('../middlewares/authMiddleware');
 
 const validateRegister = [
   body('nome').notEmpty().trim(),
-  body('email').isEmail().normalizeEmail(),
+  body('email').isEmail().normalizeEmail({ gmail_remove_dots: false }),
   body('senha').isLength({ min: 6 }),
   body('perfil').isIn(['PACIENTE', 'CUIDADOR', 'paciente', 'cuidador']),
 ];

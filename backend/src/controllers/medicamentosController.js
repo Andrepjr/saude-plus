@@ -98,31 +98,50 @@ async function deleteMedicamento(req, res, next) {
   }
 }
 
+// Retorna um registro por medicamento com status individual por horário.
+// horariosStatus: { "08:00": true, "20:00": false }
+// tomado: true somente se TODOS os horários foram tomados (usado no Dashboard)
 async function getStatusDia(req, res, next) {
   const usuarioId = req.user.id;
   let conn;
   try {
     conn = await getConnection();
-    const result = await conn.execute(
-      `SELECT m.id, m.nome, m.dosagem, m.horarios,
-              NVL(ml.tomado, 0) AS tomado, ml.horario_previsto, ml.data_hora
-       FROM medicamentos m
-       LEFT JOIN medicamentos_log ml
-         ON ml.medicamento_id = m.id
-         AND TRUNC(ml.data_hora) = TRUNC(SYSDATE)
-       WHERE m.usuario_id = :u_id AND m.ativo = 1
-       ORDER BY m.nome`,
+
+    const medsResult = await conn.execute(
+      `SELECT id, nome, dosagem, horarios
+       FROM medicamentos WHERE usuario_id = :u_id AND ativo = 1 ORDER BY nome`,
       { u_id: usuarioId }
     );
-    res.json(result.rows.map(r => ({
-      id: r.ID,
-      nome: r.NOME,
-      dosagem: r.DOSAGEM,
-      horarios: JSON.parse(r.HORARIOS || '[]'),
-      tomado: r.TOMADO === 1,
-      horarioPrevisto: r.HORARIO_PREVISTO,
-      dataHora: r.DATA_HORA,
-    })));
+
+    const logsResult = await conn.execute(
+      `SELECT medicamento_id, horario_previsto, tomado
+       FROM medicamentos_log
+       WHERE usuario_id = :u_id AND TRUNC(data_hora) = TRUNC(SYSDATE)`,
+      { u_id: usuarioId }
+    );
+
+    // lookup: "medId_horario" → tomado bool
+    const logMap = {};
+    for (const row of logsResult.rows) {
+      logMap[`${row.MEDICAMENTO_ID}_${row.HORARIO_PREVISTO}`] = row.TOMADO === 1;
+    }
+
+    res.json(medsResult.rows.map(m => {
+      const horarios = JSON.parse(m.HORARIOS || '[]');
+      const horariosStatus = {};
+      for (const h of horarios) {
+        horariosStatus[h] = logMap[`${m.ID}_${h}`] ?? false;
+      }
+      const tomado = horarios.length > 0 && horarios.every(h => horariosStatus[h]);
+      return {
+        id: m.ID,
+        nome: m.NOME,
+        dosagem: m.DOSAGEM,
+        horarios,
+        horariosStatus,
+        tomado,
+      };
+    }));
   } catch (err) {
     next(err);
   } finally {

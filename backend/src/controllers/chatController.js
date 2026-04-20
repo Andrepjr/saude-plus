@@ -7,18 +7,55 @@ function getOpenAI() {
   return _openai;
 }
 
-const SYSTEM_PROMPT = `Você é Abby, uma assistente de saúde gentil e cuidadosa especializada em monitoramento de idosos.
-Você ajuda pacientes a registrar sua glicose e pressão arterial de forma conversacional.
-Quando o paciente mencionar valores de glicose ou pressão, confirme o registro de forma calorosa.
-Fale sempre em português brasileiro, de forma simples e acolhedora.
-Nunca forneça diagnósticos médicos, apenas oriente a consultar um médico quando necessário.`;
+// Tag emitida pelo modelo para registrar tomada de medicamento.
+// Parseada pelo backend após receber a resposta; removida antes de enviar ao frontend.
+const MED_TAG_REGEX = /\[MEDICAMENTO\](\{[\s\S]*?\})\[\/MEDICAMENTO\]/i;
 
 const GLICOSE_REGEX = /glicose[:\s]+(\d{2,3})\s*(mg\/dl|mgdl)?/i;
 
-// Aceita qualquer texto entre "pressao/pressão" e os números (ex: "arterial", "está", "é de")
-// Separadores: / | x | por
-// Notação abreviada: "12 por 8" → expandida para 120/80 no handler
+// Aceita qualquer texto entre "pressao/pressão" e os números
+// Separadores: / | x | por | Notação abreviada: "12 por 8" → 120/80
 const PRESSAO_REGEX = /press[aã]o(?:[^0-9]{0,40})(\d{1,3})\s*(?:\/|x|\bpor\b)\s*(\d{1,3})/i;
+
+function buildSystemPrompt(meds) {
+  const agora = new Date();
+  const horaAtual = `${String(agora.getHours()).padStart(2, '0')}:${String(agora.getMinutes()).padStart(2, '0')}`;
+
+  let prompt = `Você é Abby, uma assistente de saúde gentil e cuidadosa especializada em monitoramento de idosos.
+Você ajuda pacientes a registrar sua glicose, pressão arterial e medicamentos de forma conversacional.
+Quando o paciente mencionar valores de glicose ou pressão, confirme o registro de forma calorosa.
+Fale sempre em português brasileiro, de forma simples e acolhedora.
+Nunca forneça diagnósticos médicos, apenas oriente a consultar um médico quando necessário.
+Horário atual: ${horaAtual}.`;
+
+  if (meds.length > 0) {
+    const medList = meds.map(m => {
+      const d = m.dosagem ? ` ${m.dosagem}` : '';
+      const h = m.horarios.length > 0 ? ` (horários: ${m.horarios.join(', ')})` : '';
+      return `- ${m.nome}${d}${h}`;
+    }).join('\n');
+
+    prompt += `
+
+Medicamentos prescritos do paciente:
+${medList}
+
+INSTRUÇÃO ESPECIAL — REGISTRO DE MEDICAMENTO:
+Quando o paciente confirmar que tomou qualquer medicamento da lista acima, você DEVE:
+1. Responder de forma acolhedora confirmando o registro.
+2. Incluir OBRIGATORIAMENTE ao final da resposta a seguinte tag (e apenas uma):
+
+[MEDICAMENTO]{"nome":"<nome exato conforme lista>","horario":"<HH:MM>"}[/MEDICAMENTO]
+
+Regras da tag:
+- "nome" deve ser EXATAMENTE igual ao nome na lista acima (mesma capitalização).
+- "horario" deve estar no formato HH:MM. Se o paciente informar, use o horário informado. Se não informar, escolha o horário agendado mais próximo do horário atual (${horaAtual}).
+- Inclua a tag SOMENTE quando tiver certeza que o paciente tomou um medicamento da lista.
+- NÃO inclua a tag em outros casos (dúvidas, perguntas, etc.).`;
+  }
+
+  return prompt;
+}
 
 function classificarGlicose(valor) {
   if (valor < 70) return 'BAIXA';
@@ -42,6 +79,30 @@ async function salvarRegistro(conn, usuarioId, tp, valor, st) {
   );
 }
 
+async function registrarTomadaDB(conn, medId, usuarioId, horario) {
+  const check = await conn.execute(
+    `SELECT id FROM medicamentos_log
+     WHERE medicamento_id = :mid AND usuario_id = :u_id
+     AND TRUNC(data_hora) = TRUNC(SYSDATE)
+     AND horario_previsto = :hp`,
+    { mid: medId, u_id: usuarioId, hp: horario }
+  );
+  if (check.rows.length > 0) {
+    await conn.execute(
+      `UPDATE medicamentos_log SET tomado = 1, data_hora = SYSTIMESTAMP WHERE id = :log_id`,
+      { log_id: check.rows[0].ID }
+    );
+    console.log(`[chat] medicamentos_log UPDATE id=${check.rows[0].ID}`);
+  } else {
+    await conn.execute(
+      `INSERT INTO medicamentos_log (medicamento_id, usuario_id, horario_previsto, tomado)
+       VALUES (:mid, :u_id, :hp, 1)`,
+      { mid: medId, u_id: usuarioId, hp: horario }
+    );
+    console.log(`[chat] medicamentos_log INSERT med_id=${medId} hp=${horario}`);
+  }
+}
+
 async function sendMessage(req, res, next) {
   const { mensagem } = req.body;
   const usuarioId = req.user.id;
@@ -50,6 +111,20 @@ async function sendMessage(req, res, next) {
   try {
     conn = await getConnection();
 
+    // Busca medicamentos ativos do paciente
+    const medsResult = await conn.execute(
+      `SELECT id, nome, dosagem, horarios FROM medicamentos
+       WHERE usuario_id = :u_id AND ativo = 1 ORDER BY nome`,
+      { u_id: usuarioId }
+    );
+    const meds = medsResult.rows.map(r => ({
+      id: r.ID,
+      nome: String(r.NOME),
+      dosagem: r.DOSAGEM ? String(r.DOSAGEM) : null,
+      horarios: JSON.parse(r.HORARIOS || '[]'),
+    }));
+
+    // Histórico de chat
     const histResult = await conn.execute(
       `SELECT role, conteudo FROM chat_historico
        WHERE usuario_id = :u_id ORDER BY criado_em DESC FETCH FIRST 10 ROWS ONLY`,
@@ -61,23 +136,60 @@ async function sendMessage(req, res, next) {
     }));
 
     const messages = [
-      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'system', content: buildSystemPrompt(meds) },
       ...history,
       { role: 'user', content: mensagem },
     ];
 
-    let resposta;
+    // Resposta da OpenAI (ou modo demo)
+    let respostaBruta;
     if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY.startsWith('sk-...')) {
-      resposta = `[Modo demo — OpenAI não configurada] Recebi sua mensagem: "${mensagem}". Configure OPENAI_API_KEY no .env para ativar a IA real.`;
+      respostaBruta = `[Modo demo — OpenAI não configurada] Recebi: "${mensagem}". Configure OPENAI_API_KEY no .env.`;
     } else {
       const completion = await getOpenAI().chat.completions.create({
         model: 'gpt-4o-mini',
         messages,
         temperature: 0.7,
       });
-      resposta = completion.choices[0].message.content;
+      respostaBruta = completion.choices[0].message.content;
     }
 
+    console.log('[chat] Resposta bruta do modelo:', respostaBruta);
+
+    // Parse da tag [MEDICAMENTO] emitida pelo modelo
+    const registros = [];
+    const medTagMatch = respostaBruta.match(MED_TAG_REGEX);
+
+    if (medTagMatch) {
+      console.log('[chat] Tag [MEDICAMENTO] detectada:', medTagMatch[1]);
+      try {
+        const payload = JSON.parse(medTagMatch[1]);
+        const nomeTag = (payload.nome || '').trim();
+        const horarioTag = (payload.horario || '').trim();
+
+        // Valida o medicamento contra a lista real do paciente (case-insensitive)
+        const medEncontrado = meds.find(
+          m => m.nome.toLowerCase() === nomeTag.toLowerCase()
+        );
+
+        if (!medEncontrado) {
+          console.log(`[chat] Medicamento da tag ("${nomeTag}") não encontrado na lista. Meds:`, meds.map(m => m.nome));
+        } else if (!horarioTag) {
+          console.log('[chat] Tag sem campo "horario" — ignorando registro.');
+        } else {
+          console.log(`[chat] Medicamento detectado: ${medEncontrado.nome} | horário: ${horarioTag}`);
+          await registrarTomadaDB(conn, medEncontrado.id, usuarioId, horarioTag);
+          registros.push({ tipo: 'MEDICAMENTO', nome: medEncontrado.nome, horario: horarioTag });
+        }
+      } catch (parseErr) {
+        console.log('[chat] Erro ao fazer parse do JSON da tag:', parseErr.message, '| Raw:', medTagMatch[1]);
+      }
+    }
+
+    // Remove a tag da resposta antes de salvar no histórico e enviar ao frontend
+    const resposta = respostaBruta.replace(MED_TAG_REGEX, '').trim();
+
+    // Salva no histórico já sem a tag
     await conn.execute(
       `INSERT INTO chat_historico (usuario_id, role, conteudo) VALUES (:u_id, 'user', :msg)`,
       { u_id: usuarioId, msg: mensagem }
@@ -87,7 +199,7 @@ async function sendMessage(req, res, next) {
       { u_id: usuarioId, msg: resposta }
     );
 
-    const registros = [];
+    // Glicose e pressão ainda detectados por regex (formato numérico, sem ambiguidade)
     const glicoseMatch = mensagem.match(GLICOSE_REGEX);
     if (glicoseMatch) {
       const valor = parseInt(glicoseMatch[1]);
@@ -100,7 +212,6 @@ async function sendMessage(req, res, next) {
     if (pressaoMatch) {
       let sistolica  = parseInt(pressaoMatch[1]);
       let diastolica = parseInt(pressaoMatch[2]);
-      // Notação abreviada: "12 por 8" significa 120/80 — idosos omitem o zero final
       if (sistolica < 30) { sistolica *= 10; diastolica *= 10; }
       const valor = `${sistolica}/${diastolica}`;
       const st = classificarPressao(sistolica, diastolica);

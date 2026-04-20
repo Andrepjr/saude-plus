@@ -34,8 +34,7 @@ export interface Medicamento {
 
 export interface MedicamentoStatus extends Medicamento {
   tomado: boolean;
-  horarioPrevisto?: string;
-  dataHora?: string;
+  horariosStatus: Record<string, boolean>;
 }
 
 export interface MensagemChat {
