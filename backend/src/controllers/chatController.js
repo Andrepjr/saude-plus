@@ -17,16 +17,17 @@ const GLICOSE_REGEX = /glicose[:\s]+(\d{2,3})\s*(mg\/dl|mgdl)?/i;
 // Separadores: / | x | por | Notação abreviada: "12 por 8" → 120/80
 const PRESSAO_REGEX = /press[aã]o(?:[^0-9]{0,40})(\d{1,3})\s*(?:\/|x|\bpor\b)\s*(\d{1,3})/i;
 
-function buildSystemPrompt(meds) {
+function buildSystemPrompt(meds, nomeCompleto) {
   const agora = new Date();
   const horaAtual = `${String(agora.getHours()).padStart(2, '0')}:${String(agora.getMinutes()).padStart(2, '0')}`;
+  const primeiroNome = nomeCompleto ? nomeCompleto.split(' ')[0] : null;
 
   let prompt = `Você é Abby, uma assistente de saúde gentil e cuidadosa especializada em monitoramento de idosos.
 Você ajuda pacientes a registrar sua glicose, pressão arterial e medicamentos de forma conversacional.
 Quando o paciente mencionar valores de glicose ou pressão, confirme o registro de forma calorosa.
 Fale sempre em português brasileiro, de forma simples e acolhedora.
 Nunca forneça diagnósticos médicos, apenas oriente a consultar um médico quando necessário.
-Horário atual: ${horaAtual}.`;
+Horário atual: ${horaAtual}.${primeiroNome ? `\nO nome do paciente é ${primeiroNome}. Chame-o(a) pelo primeiro nome de forma natural e afetuosa ao longo da conversa.` : ''}`;
 
   if (meds.length > 0) {
     const medList = meds.map(m => {
@@ -136,7 +137,7 @@ async function sendMessage(req, res, next) {
     }));
 
     const messages = [
-      { role: 'system', content: buildSystemPrompt(meds) },
+      { role: 'system', content: buildSystemPrompt(meds, req.user.nome) },
       ...history,
       { role: 'user', content: mensagem },
     ];
