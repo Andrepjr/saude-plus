@@ -23,7 +23,11 @@
       "Bash(mkdir -p /tmp/remedios-design)",
       "Bash(tar -xf /tmp/remedios-extracted -C /tmp/remedios-design)",
       "Bash(npx tsc *)",
-      "Bash(node -e \"console.log\\(process.version\\)\")"
+      "Bash(node -e \"console.log\\(process.version\\)\")",
+      "Bash(cp \"C:\\\\Users\\\\andre\\\\.claude\\\\projects\\\\c--Users-andre-OneDrive--rea-de-Trabalho-saude-plus\\\\feb3aac7-b35a-44a1-aac7-7f715fdc86af\\\\tool-results\\\\webfetch-1776730528564-2vk3zk.bin\" /tmp/login.gz)",
+      "Bash(gunzip -c /tmp/login.gz)",
+      "Bash(mkdir -p /tmp/login-design)",
+      "Bash(tar -xf /tmp/login-extracted -C /tmp/login-design)"
     ]
   }
 }

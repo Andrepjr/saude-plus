@@ -1,43 +1,95 @@
-import { useState, useEffect } from 'react';
-import type { FormEvent } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import Input from '../components/common/Input';
 import loginHero from '../assets/login-hero.jpg';
 
 type Modo = 'login' | 'register';
 
-const VERDE = '#1a5c45';
-const VERDE_HOVER = '#154d3a';
+// ── Icons ──────────────────────────────────────────────────────────────
+const HeartIcon = () => (
+  <svg width={20} height={20} viewBox="0 0 24 24" fill="none">
+    <path d="M12 20.5s-7.5-4.5-9.5-9.5C1 7 4 3.5 7.5 3.5c2 0 3.5 1 4.5 2.5 1-1.5 2.5-2.5 4.5-2.5 3.5 0 6.5 3.5 5 7.5-2 5-9.5 9.5-9.5 9.5z" fill="#fff"/>
+  </svg>
+);
+const MailIcon = () => (
+  <svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+    <rect x="3" y="5" width="18" height="14" rx="3" stroke="currentColor" strokeWidth="1.8"/>
+    <path d="M4 7l8 6 8-6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+const LockIcon = () => (
+  <svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+    <rect x="4" y="10" width="16" height="11" rx="2.5" stroke="currentColor" strokeWidth="1.8"/>
+    <path d="M8 10V7a4 4 0 018 0v3" stroke="currentColor" strokeWidth="1.8"/>
+  </svg>
+);
+const UserIcon = () => (
+  <svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+    <circle cx="12" cy="8" r="4" stroke="currentColor" strokeWidth="1.8"/>
+    <path d="M4 20c0-4 4-6 8-6s8 2 8 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+  </svg>
+);
+const EyeIcon = () => (
+  <svg width={17} height={17} viewBox="0 0 24 24" fill="none">
+    <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/>
+    <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.8"/>
+  </svg>
+);
+const EyeOffIcon = () => (
+  <svg width={17} height={17} viewBox="0 0 24 24" fill="none">
+    <path d="M3 3l18 18M10.6 10.6a2 2 0 002.8 2.8M9.5 5.1A10 10 0 0112 5c6.5 0 10 7 10 7a15 15 0 01-3 3.5M6 7.5A14 14 0 002 12s3.5 7 10 7c1.7 0 3.2-.4 4.5-1" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+  </svg>
+);
+const ArrowIcon = () => (
+  <svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+    <path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+const PulseIcon = () => (
+  <svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+    <path d="M3 12h4l2-5 4 10 2-5h6" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+const ChartIcon = () => (
+  <svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+    <path d="M4 20V10M10 20V4M16 20v-8M22 20H2" stroke="#fff" strokeWidth="2" strokeLinecap="round"/>
+  </svg>
+);
+const PillIcon = () => (
+  <svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+    <rect x="3" y="9" width="18" height="6" rx="3" stroke="#fff" strokeWidth="2" transform="rotate(-35 12 12)"/>
+    <path d="M7.8 7.3L16.2 15.7" stroke="#fff" strokeWidth="2" strokeLinecap="round"/>
+  </svg>
+);
+const SmileIcon = () => (
+  <svg width={14} height={14} viewBox="0 0 24 24" fill="none">
+    <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.8"/>
+    <path d="M8 14c1.2 1.3 2.5 2 4 2s2.8-.7 4-2M9 10v.01M15 10v.01" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+  </svg>
+);
+const InfoIcon = () => (
+  <svg width={13} height={13} viewBox="0 0 24 24" fill="none">
+    <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2"/>
+    <path d="M12 11v5M12 7.5v.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+  </svg>
+);
 
-function useWindowWidth() {
-  const [width, setWidth] = useState(() => window.innerWidth);
-  useEffect(() => {
-    const fn = () => setWidth(window.innerWidth);
-    window.addEventListener('resize', fn);
-    return () => window.removeEventListener('resize', fn);
-  }, []);
-  return width;
-}
-
+// ── Main component ─────────────────────────────────────────────────────
 export default function Login() {
   const { login, register } = useAuth();
   const navigate = useNavigate();
-  const [modo, setModo] = useState<Modo>('login');
-  const [form, setForm] = useState({ nome: '', email: '', senha: '', perfil: 'CUIDADOR' });
-  const [erro, setErro] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [btnHover, setBtnHover] = useState(false);
 
-  const w = useWindowWidth();
-  const isMobile = w < 768;   // stacked layout
-  const isSmall  = w < 480;   // extra compact
+  const [modo, setModo]     = useState<Modo>('login');
+  const [form, setForm]     = useState({ nome: '', email: '', senha: '', perfil: 'PACIENTE' });
+  const [erro, setErro]     = useState('');
+  const [loading, setLoading] = useState(false);
+  const [showPw, setShowPw] = useState(false);
 
   function set(field: string, value: string) {
     setForm(p => ({ ...p, [field]: value }));
   }
 
-  async function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setErro('');
     setLoading(true);
@@ -49,8 +101,9 @@ export default function Login() {
       }
       const perfil = JSON.parse(localStorage.getItem('saude_user') || '{}').perfil;
       navigate(perfil === 'CUIDADOR' ? '/cuidador' : '/paciente');
-    } catch (err: any) {
-      setErro(err.response?.data?.error || 'Erro ao entrar. Verifique seus dados.');
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { error?: string } } };
+      setErro(axiosErr.response?.data?.error || 'Erro ao entrar. Verifique seus dados.');
     } finally {
       setLoading(false);
     }
@@ -59,167 +112,125 @@ export default function Login() {
   function trocarModo() {
     setModo(m => m === 'login' ? 'register' : 'login');
     setErro('');
-    setForm({ nome: '', email: '', senha: '', perfil: 'CUIDADOR' });
+    setForm({ nome: '', email: '', senha: '', perfil: 'PACIENTE' });
+    setShowPw(false);
   }
 
-  // ── valores responsivos ────────────────────────────────────────────────────
-  const heroPadding   = isSmall ? '20px 20px' : isMobile ? '24px 28px' : '48px';
-  const heroTitleSize = isSmall ? '22px'       : isMobile ? '26px'      : '40px';
-  const formPadding   = isSmall ? '24px 20px'  : isMobile ? '32px 28px' : '48px 64px';
-  const formTitleSize = isSmall ? '22px'        : isMobile ? '24px'      : '28px';
-  const formGapHead   = isSmall ? '20px'        : '32px';
-
   return (
-    <div style={{
-      display: 'flex',
-      flexDirection: isMobile ? 'column' : 'row',
-      minHeight: '100vh',
-      fontFamily: 'inherit',
-    }}>
+    <div className="lgn-shell">
 
-      {/* ── Banner / Hero ────────────────────────────────────────────────── */}
-      <div style={{
-        // desktop: 50% width fixo | mobile: largura total, altura 35vh
-        ...(isMobile
-          ? { width: '100%', height: isSmall ? '30vh' : '35vh', flexShrink: 0 }
-          : { flex: '0 0 50%' }
-        ),
-        position: 'relative',
-        backgroundImage: `url(${loginHero})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        display: 'flex',
-        flexDirection: 'column',
-        padding: heroPadding,
-        overflow: 'hidden',
-      }}>
-        {/* Overlay */}
-        <div style={{
-          position: 'absolute', inset: 0,
-          background: 'rgba(26, 92, 69, 0.83)',
-        }} />
+      {/* ── Left panel ────────────────────────────────────────────── */}
+      <aside
+        className="lgn-left"
+        style={{ backgroundImage: `url(${loginHero})` }}
+      >
+        {/* Green gradient overlay */}
+        <div className="lgn-overlay" />
+        {/* Decorative blobs */}
+        <div className="lgn-blob lgn-blob-a" />
+        <div className="lgn-blob lgn-blob-b" />
+        <div className="lgn-blob lgn-blob-c" />
+        {/* Dot grid */}
+        <div className="lgn-dots" />
 
-        <div style={{
-          position: 'relative', zIndex: 1,
-          display: 'flex', flexDirection: 'column', height: '100%',
-        }}>
+        <div className="lgn-left-content">
           {/* Logo */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{
-              width: isSmall ? 32 : 38, height: isSmall ? 32 : 38,
-              borderRadius: '10px',
-              background: 'rgba(255,255,255,0.18)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: isSmall ? '14px' : '16px', fontWeight: 800, color: '#fff',
-              border: '1px solid rgba(255,255,255,0.25)',
-            }}>S+</div>
-            <span style={{
-              color: '#fff', fontWeight: 700,
-              fontSize: isSmall ? '15px' : '17px',
-            }}>Saúde+</span>
+          <div className="lgn-logo">
+            <div className="lgn-logo-mark"><HeartIcon /></div>
+            <div className="lgn-logo-text">Saúde<span className="lgn-plus">+</span></div>
           </div>
 
-          {/* Título + subtítulo — só visível se tiver espaço suficiente */}
-          <div style={{
-            flex: 1,
-            display: 'flex', flexDirection: 'column', justifyContent: 'center',
-            // no mobile compacto esconde o subtítulo longo
-          }}>
-            <h1 style={{
-              color: '#fff',
-              fontSize: heroTitleSize,
-              fontWeight: 800,
-              lineHeight: 1.2,
-              margin: isMobile ? '12px 0 8px' : '0 0 20px',
-              letterSpacing: '-0.3px',
-            }}>
-              Acompanhe a saúde de quem você ama
+          {/* Hero */}
+          <div className="lgn-hero">
+            <span className="lgn-eyebrow">
+              <span className="lgn-eyebrow-dot" />
+              Monitoramento de Saúde
+            </span>
+            <h1>
+              Acompanhe a saúde de{' '}
+              <span className="lgn-accent">quem você ama</span>
             </h1>
-            {/* Subtítulo oculto em telas muito pequenas */}
-            {!isSmall && (
-              <p style={{
-                color: 'rgba(255,255,255,0.82)',
-                fontSize: isMobile ? '14px' : '15.5px',
-                lineHeight: 1.6,
-                margin: 0,
-                maxWidth: '380px',
-              }}>
-                Monitore glicose, pressão e medicamentos em tempo real.
-                Receba alertas inteligentes quando algo precisar de atenção.
-              </p>
-            )}
-          </div>
-
-          {/* Ícones — ocultos no banner mobile para não poluir */}
-          {!isMobile && (
-            <div style={{ display: 'flex', gap: '20px' }}>
-              {[
-                { emoji: '❤️', label: 'Saúde' },
-                { emoji: '📊', label: 'Relatórios' },
-                { emoji: '💊', label: 'Medicamentos' },
-              ].map(item => (
-                <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <div style={{
-                    width: 34, height: 34, borderRadius: '9px',
-                    background: 'rgba(255,255,255,0.14)',
-                    border: '1px solid rgba(255,255,255,0.2)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: '16px',
-                  }}>{item.emoji}</div>
-                  <span style={{ color: 'rgba(255,255,255,0.78)', fontSize: '13px', fontWeight: 500 }}>
-                    {item.label}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* ── Formulário ───────────────────────────────────────────────────── */}
-      <div style={{
-        ...(isMobile ? { flex: 1, width: '100%' } : { flex: '0 0 50%' }),
-        background: '#fff',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: isMobile ? 'flex-start' : 'center',
-        alignItems: 'center',
-        padding: formPadding,
-        overflowY: 'auto',
-      }}>
-        <div style={{ width: '100%', maxWidth: isMobile ? '100%' : '380px' }}>
-
-          {/* Cabeçalho */}
-          <div style={{ marginBottom: formGapHead }}>
-            <h2 style={{
-              fontSize: formTitleSize, fontWeight: 700, color: '#111827',
-              margin: '0 0 6px',
-            }}>
-              {modo === 'login' ? 'Bem-vindo de volta' : 'Criar conta'}
-            </h2>
-            <p style={{ color: '#6b7280', fontSize: isSmall ? '13px' : '15px', margin: 0 }}>
-              {modo === 'login'
-                ? 'Acesse o painel do cuidador'
-                : 'Comece a monitorar a saúde de quem você ama'}
+            <p>
+              Monitore glicose, pressão e medicamentos em tempo real. Receba
+              alertas inteligentes quando algo precisar de atenção.
             </p>
           </div>
 
-          {/* Form */}
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          {/* Feature badges */}
+          <div className="lgn-badges">
+            {[
+              { icon: <PulseIcon />, label: 'Saúde',        sub: 'Glicose · pressão' },
+              { icon: <ChartIcon />, label: 'Relatórios',   sub: 'Tendências semanais' },
+              { icon: <PillIcon />,  label: 'Medicamentos', sub: 'Lembretes e doses' },
+            ].map(b => (
+              <div key={b.label} className="lgn-badge">
+                <div className="lgn-badge-icon">{b.icon}</div>
+                <div className="lgn-badge-label">
+                  <span>{b.label}</span>
+                  <span className="lgn-badge-sub">{b.sub}</span>
+                </div>
+              </div>
+            ))}
+          </div>
 
+          {/* Footnote */}
+          <div className="lgn-footnote">
+            <span>✓ Certificado LGPD</span>
+            <span className="lgn-fn-dot" />
+            <span>✓ Dados criptografados</span>
+            <span className="lgn-fn-dot" />
+            <span>Desde 2024</span>
+          </div>
+        </div>
+      </aside>
+
+      {/* ── Right panel ───────────────────────────────────────────── */}
+      <main className="lgn-right">
+        {/* Top bar */}
+        <div className="lgn-right-top">
+          <span>{modo === 'login' ? 'Novo por aqui?' : 'Já tem conta?'}</span>
+          <button className="lgn-top-link" onClick={trocarModo}>
+            {modo === 'login' ? 'Criar conta' : 'Entrar'}
+          </button>
+        </div>
+
+        {/* Centered form */}
+        <div className="lgn-form-wrap">
+          <form className="lgn-form" onSubmit={handleSubmit} noValidate>
+
+            <div className="lgn-form-header">
+              <h1 className="lgn-form-title">
+                {modo === 'login' ? 'Bem-vindo de volta' : 'Criar conta'}
+              </h1>
+              <p className="lgn-form-sub">
+                {modo === 'login'
+                  ? 'Acesse sua conta'
+                  : 'Comece a monitorar a saúde de quem você ama'}
+              </p>
+            </div>
+
+            {/* Register-only fields */}
             {modo === 'register' && (
               <>
-                <Input
-                  label="Nome completo"
-                  value={form.nome}
-                  onChange={e => set('nome', e.target.value)}
-                  placeholder="Seu nome completo"
-                  autoComplete="name"
-                  required
-                />
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <label style={{ fontSize: '14px', fontWeight: 500, color: '#374151' }}>Perfil</label>
-                  <div style={{ display: 'flex', gap: '10px' }}>
+                <div className="lgn-field">
+                  <label className="lgn-field-label" htmlFor="nome">Nome completo</label>
+                  <div className="lgn-input-wrap">
+                    <span className="lgn-input-icon"><UserIcon /></span>
+                    <input
+                      id="nome"
+                      className="lgn-input"
+                      placeholder="Seu nome completo"
+                      value={form.nome}
+                      onChange={e => set('nome', e.target.value)}
+                      autoComplete="name"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="lgn-field">
+                  <label className="lgn-field-label">Perfil</label>
+                  <div style={{ display: 'flex', gap: 10 }}>
                     {[
                       { value: 'PACIENTE', emoji: '👴', label: 'Paciente' },
                       { value: 'CUIDADOR', emoji: '👩‍⚕️', label: 'Cuidador' },
@@ -228,19 +239,9 @@ export default function Login() {
                         key={p.value}
                         type="button"
                         onClick={() => set('perfil', p.value)}
-                        style={{
-                          flex: 1, padding: '10px 8px',
-                          borderRadius: '10px',
-                          border: `2px solid ${form.perfil === p.value ? VERDE : '#e5e7eb'}`,
-                          background: form.perfil === p.value ? '#f0fdf4' : '#fafafa',
-                          cursor: 'pointer',
-                          fontSize: '13px', fontWeight: 500,
-                          color: form.perfil === p.value ? VERDE : '#6b7280',
-                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px',
-                          transition: 'all 0.15s',
-                        }}
+                        className={`lgn-perfil-btn${form.perfil === p.value ? ' active' : ''}`}
                       >
-                        <span style={{ fontSize: '20px' }}>{p.emoji}</span>
+                        <span style={{ fontSize: 20 }}>{p.emoji}</span>
                         {p.label}
                       </button>
                     ))}
@@ -249,104 +250,98 @@ export default function Login() {
               </>
             )}
 
-            <Input
-              label="E-mail"
-              type="email"
-              value={form.email}
-              onChange={e => set('email', e.target.value)}
-              placeholder="seu@email.com"
-              autoComplete={modo === 'login' ? 'email' : 'off'}
-              required
-            />
-            <Input
-              label="Senha"
-              type="password"
-              value={form.senha}
-              onChange={e => set('senha', e.target.value)}
-              placeholder="••••••••"
-              autoComplete={modo === 'login' ? 'current-password' : 'new-password'}
-              required
-            />
+            {/* Email */}
+            <div className="lgn-field">
+              <div className="lgn-field-label-row">
+                <label className="lgn-field-label" htmlFor="email">E-mail</label>
+              </div>
+              <div className="lgn-input-wrap">
+                <span className="lgn-input-icon"><MailIcon /></span>
+                <input
+                  id="email"
+                  type="email"
+                  className="lgn-input"
+                  placeholder="seu@email.com"
+                  value={form.email}
+                  onChange={e => set('email', e.target.value)}
+                  autoComplete={modo === 'login' ? 'email' : 'off'}
+                  required
+                />
+              </div>
+            </div>
 
+            {/* Password */}
+            <div className="lgn-field">
+              <div className="lgn-field-label-row">
+                <label className="lgn-field-label" htmlFor="senha">Senha</label>
+              </div>
+              <div className="lgn-input-wrap">
+                <span className="lgn-input-icon"><LockIcon /></span>
+                <input
+                  id="senha"
+                  type={showPw ? 'text' : 'password'}
+                  className="lgn-input"
+                  placeholder="••••••••"
+                  value={form.senha}
+                  onChange={e => set('senha', e.target.value)}
+                  autoComplete={modo === 'login' ? 'current-password' : 'new-password'}
+                  required
+                />
+                <button
+                  type="button"
+                  className="lgn-input-action"
+                  onClick={() => setShowPw(v => !v)}
+                  aria-label="Mostrar/ocultar senha"
+                >
+                  {showPw ? <EyeOffIcon /> : <EyeIcon />}
+                </button>
+              </div>
+            </div>
+
+            {/* Error */}
             {erro && (
-              <div style={{
-                padding: '10px 14px', borderRadius: '8px',
-                background: '#fef2f2', color: '#dc2626',
-                fontSize: '14px', border: '1px solid #fecaca',
-              }}>
-                {erro}
+              <div className="lgn-error">
+                <InfoIcon /> {erro}
               </div>
             )}
 
-            <button
-              type="submit"
-              disabled={loading}
-              onMouseEnter={() => setBtnHover(true)}
-              onMouseLeave={() => setBtnHover(false)}
-              style={{
-                width: '100%',
-                padding: isSmall ? '12px' : '13px',
-                borderRadius: '12px',
-                border: 'none',
-                background: loading ? '#9ca3af' : btnHover ? VERDE_HOVER : VERDE,
-                color: '#fff',
-                fontSize: isSmall ? '14px' : '15px',
-                fontWeight: 600,
-                cursor: loading ? 'not-allowed' : 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-                transition: 'background 0.18s',
-                marginTop: '4px',
-              }}
-            >
-              {loading ? 'Aguarde...' : (
-                <>
-                  {modo === 'login' ? 'Entrar' : 'Criar conta'}
-                  <span style={{ fontSize: '17px', lineHeight: 1 }}>→</span>
-                </>
-              )}
+            {/* Submit */}
+            <button type="submit" className="lgn-btn lgn-btn-primary" disabled={loading}>
+              {loading
+                ? <><span className="lgn-spinner" /> Aguarde…</>
+                : <>{modo === 'login' ? 'Entrar' : 'Criar conta'} <span className="lgn-arrow"><ArrowIcon /></span></>
+              }
             </button>
+
+            {/* Divider */}
+            <div className="lgn-divider">ou</div>
+
+            {/* Toggle mode */}
+            <button type="button" className="lgn-btn lgn-btn-secondary" onClick={trocarModo}>
+              {modo === 'login'
+                ? <>Criar conta <span className="lgn-arrow"><ArrowIcon /></span></>
+                : <>← Já tenho conta — Entrar</>
+              }
+            </button>
+
+            {/* Footer note (login only) */}
+            {modo === 'login' && (
+              <div className="lgn-footer-note">
+                <div className="lgn-footer-note-icon"><SmileIcon /></div>
+                <div>
+                  <strong style={{ color: '#0f1b18', fontWeight: 600 }}>É paciente?</strong>{' '}
+                  Baixe o app <strong style={{ color: '#0f1b18' }}>Saúde+</strong> na App Store ou Google Play.
+                </div>
+              </div>
+            )}
           </form>
-
-          {/* Divisor */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: '20px 0' }}>
-            <div style={{ flex: 1, height: '1px', background: '#e5e7eb' }} />
-            <span style={{ color: '#9ca3af', fontSize: '13px' }}>ou</span>
-            <div style={{ flex: 1, height: '1px', background: '#e5e7eb' }} />
-          </div>
-
-          {/* Alternar modo */}
-          <button
-            onClick={trocarModo}
-            style={{
-              width: '100%',
-              padding: isSmall ? '11px' : '12px',
-              borderRadius: '12px',
-              border: '1.5px solid #e5e7eb',
-              background: '#fff',
-              color: VERDE,
-              fontSize: isSmall ? '13px' : '14px',
-              fontWeight: 500,
-              cursor: 'pointer',
-            }}
-          >
-            {modo === 'login' ? 'Criar conta de cuidador' : '← Já tenho conta — Entrar'}
-          </button>
-
-          {/* Rodapé */}
-          {modo === 'login' && (
-            <p style={{
-              textAlign: 'center', color: '#9ca3af',
-              fontSize: '13px', marginTop: '24px', lineHeight: 1.6,
-            }}>
-              É paciente? Baixe o app{' '}
-              <strong style={{ color: '#374151' }}>Saúde+</strong> na{' '}
-              <span style={{ color: VERDE, fontWeight: 500 }}>App Store</span>
-              {' '}ou{' '}
-              <span style={{ color: VERDE, fontWeight: 500 }}>Google Play</span>
-            </p>
-          )}
         </div>
-      </div>
+
+        <div className="lgn-legal">
+          Ao entrar você concorda com nossos <a href="#">Termos</a> e{' '}
+          <a href="#">Política de Privacidade</a>.
+        </div>
+      </main>
     </div>
   );
 }
