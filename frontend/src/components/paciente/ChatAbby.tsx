@@ -15,8 +15,8 @@ interface ISpeechRecognition {
   onerror:  ((e: { error: string }) => void) | null;
 }
 function getSpeechRecognition(): (new () => ISpeechRecognition) | null {
-  const w = window as Record<string, unknown>;
-  return (w['SpeechRecognition'] || w['webkitSpeechRecognition'] || null) as (new () => ISpeechRecognition) | null;
+  const w = window as any;
+  return (w.SpeechRecognition || w.webkitSpeechRecognition || null) as (new () => ISpeechRecognition) | null;
 }
 
 // ── SVG icons ─────────────────────────────────────────────────────────

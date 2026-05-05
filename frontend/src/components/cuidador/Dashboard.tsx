@@ -387,7 +387,7 @@ export default function Dashboard({ analyzeKey = 0, analyzing = false }: Dashboa
                     borderRadius: 10, border: 'none',
                     boxShadow: '0 4px 16px rgba(0,0,0,.1)', fontSize: 13,
                   }}
-                  formatter={(v: number) => [`${v} mg/dL`, 'Glicose']}
+                  formatter={(v) => [`${v} mg/dL`, 'Glicose']}
                 />
                 <Area
                   type="monotone" dataKey="valor"

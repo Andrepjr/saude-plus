@@ -274,7 +274,7 @@ export default function Remedios() {
   const [editingMed, setEditingMed] = useState<MedicamentoStatus | null>(null);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState('');
-  const toastTimer = useRef<ReturnType<typeof setTimeout>>();
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   function showToast(msg: string) {
     setToast(msg);
