@@ -7,15 +7,13 @@ function getOpenAI() {
   return _openai;
 }
 
-// Tag emitida pelo modelo para registrar tomada de medicamento.
-// Parseada pelo backend após receber a resposta; removida antes de enviar ao frontend.
-const MED_TAG_REGEX = /\[MEDICAMENTO\](\{[\s\S]*?\})\[\/MEDICAMENTO\]/i;
+// Tags emitidas pelo modelo — parseadas pelo backend, removidas antes de enviar ao frontend
+const MED_TAG_REGEX = /\[MED\](\{[\s\S]*?\})\[\/MED\]/i;
+const DADOS_TAG_REGEX = /\[DADOS\]([\s\S]*?)\[\/DADOS\]/i;
 
-const GLICOSE_REGEX = /glicose[:\s]+(\d{2,3})\s*(mg\/dl|mgdl)?/i;
-
-// Aceita qualquer texto entre "pressao/pressão" e os números
-// Separadores: / | x | por | Notação abreviada: "12 por 8" → 120/80
-const PRESSAO_REGEX = /press[aã]o(?:[^0-9]{0,40})(\d{1,3})\s*(?:\/|x|\bpor\b)\s*(\d{1,3})/i;
+// Fallback: regex aplicada na mensagem do USUÁRIO caso a tag [DADOS] não venha
+const GLICOSE_REGEX = /glic\w*[^0-9]{0,30}(\d{2,3})/i;
+const PRESSAO_REGEX = /press[aã]o[^0-9]{0,40}(\d{1,3})\s*(?:\/|x|\bpor\b)\s*(\d{1,3})/i;
 
 function buildSystemPrompt(meds, nomeCompleto) {
   const agora = new Date();
@@ -24,35 +22,51 @@ function buildSystemPrompt(meds, nomeCompleto) {
 
   let prompt = `Você é Abby, uma assistente de saúde gentil e cuidadosa especializada em monitoramento de idosos.
 Você ajuda pacientes a registrar sua glicose, pressão arterial e medicamentos de forma conversacional.
-Quando o paciente mencionar valores de glicose ou pressão, confirme o registro de forma calorosa.
 Fale sempre em português brasileiro, de forma simples e acolhedora.
 Nunca forneça diagnósticos médicos, apenas oriente a consultar um médico quando necessário.
-Horário atual: ${horaAtual}.${primeiroNome ? `\nO nome do paciente é ${primeiroNome}. Chame-o(a) pelo primeiro nome de forma natural e afetuosa ao longo da conversa.` : ''}`;
+Horário atual: ${horaAtual}.${primeiroNome ? `\nO nome do paciente é ${primeiroNome}. Chame-o(a) pelo primeiro nome de forma natural e afetuosa ao longo da conversa.` : ''}
+
+REGRA CRÍTICA E OBRIGATÓRIA:
+Toda vez que o paciente mencionar QUALQUER valor numérico de glicose ou pressão arterial, você DEVE incluir a tag [DADOS] no FINAL da sua resposta, DEPOIS do texto de conversa.
+Se você não incluir a tag, os dados serão PERDIDOS e não serão salvos no sistema.
+A tag NÃO aparece pro paciente, é apenas para o sistema interno.
+
+Formatos obrigatórios:
+- Apenas glicose: [DADOS]{"glicose": VALOR}[/DADOS]
+- Apenas pressão: [DADOS]{"sistolica": VALOR, "diastolica": VALOR}[/DADOS]
+- Ambos: [DADOS]{"glicose": VALOR, "sistolica": VALOR, "diastolica": VALOR}[/DADOS]
+
+Exemplos:
+- Paciente diz "minha glicose deu 145" → responda normalmente e adicione no final: [DADOS]{"glicose": 145}[/DADOS]
+- Paciente diz "pressão tá 14 por 9" → responda normalmente e adicione no final: [DADOS]{"sistolica": 140, "diastolica": 90}[/DADOS]
+- Paciente diz "glicose 130 e pressão 12 por 8" → [DADOS]{"glicose": 130, "sistolica": 120, "diastolica": 80}[/DADOS]
+
+NUNCA esqueça a tag. SEMPRE inclua quando houver valores de saúde.`;
 
   if (meds.length > 0) {
     const medList = meds.map(m => {
       const d = m.dosagem ? ` ${m.dosagem}` : '';
-      const h = m.horarios.length > 0 ? ` (horários: ${m.horarios.join(', ')})` : '';
+      const h = m.horarios.length > 0 ? ` nos horários: ${m.horarios.join(', ')}` : '';
       return `- ${m.nome}${d}${h}`;
     }).join('\n');
 
     prompt += `
 
-Medicamentos prescritos do paciente:
+O paciente toma os seguintes medicamentos:
 ${medList}
 
 INSTRUÇÃO ESPECIAL — REGISTRO DE MEDICAMENTO:
-Quando o paciente confirmar que tomou qualquer medicamento da lista acima, você DEVE:
-1. Responder de forma acolhedora confirmando o registro.
-2. Incluir OBRIGATORIAMENTE ao final da resposta a seguinte tag (e apenas uma):
+Quando o paciente disser que tomou um medicamento, verifique se ele está na lista acima.
+- Se estiver na lista: responda de forma acolhedora confirmando o registro E inclua OBRIGATORIAMENTE ao final da resposta (e somente ao final, nunca no meio) a seguinte tag oculta:
+[MED]{"nome":"<nome exato conforme lista acima>","horario":"<HH:MM>"}[/MED]
+- Se NÃO estiver na lista: diga ao paciente que esse medicamento não está cadastrado no sistema e peça para ele confirmar o nome. NÃO inclua a tag [MED].
 
-[MEDICAMENTO]{"nome":"<nome exato conforme lista>","horario":"<HH:MM>"}[/MEDICAMENTO]
-
-Regras da tag:
+Regras da tag [MED]:
 - "nome" deve ser EXATAMENTE igual ao nome na lista acima (mesma capitalização).
-- "horario" deve estar no formato HH:MM. Se o paciente informar, use o horário informado. Se não informar, escolha o horário agendado mais próximo do horário atual (${horaAtual}).
+- "horario" deve estar no formato HH:MM. Use o horário que o paciente informou; se não informou, use o horário agendado mais próximo do horário atual (${horaAtual}).
 - Inclua a tag SOMENTE quando tiver certeza que o paciente tomou um medicamento da lista.
-- NÃO inclua a tag em outros casos (dúvidas, perguntas, etc.).`;
+- NÃO inclua a tag em perguntas, dúvidas ou outros contextos.
+- A tag é invisível para o paciente — nunca a mencione.`;
   }
 
   return prompt;
@@ -84,7 +98,7 @@ async function registrarTomadaDB(conn, medId, usuarioId, horario) {
   const check = await conn.execute(
     `SELECT id FROM medicamentos_log
      WHERE medicamento_id = :mid AND usuario_id = :u_id
-     AND TRUNC(data_hora) = TRUNC(SYSDATE)
+     AND TRUNC(NVL(data_hora, SYSDATE)) = TRUNC(SYSDATE)
      AND horario_previsto = :hp`,
     { mid: medId, u_id: usuarioId, hp: horario }
   );
@@ -96,8 +110,8 @@ async function registrarTomadaDB(conn, medId, usuarioId, horario) {
     console.log(`[chat] medicamentos_log UPDATE id=${check.rows[0].ID}`);
   } else {
     await conn.execute(
-      `INSERT INTO medicamentos_log (medicamento_id, usuario_id, horario_previsto, tomado)
-       VALUES (:mid, :u_id, :hp, 1)`,
+      `INSERT INTO medicamentos_log (medicamento_id, usuario_id, horario_previsto, tomado, data_hora)
+       VALUES (:mid, :u_id, :hp, 1, SYSTIMESTAMP)`,
       { mid: medId, u_id: usuarioId, hp: horario }
     );
     console.log(`[chat] medicamentos_log INSERT med_id=${medId} hp=${horario}`);
@@ -157,40 +171,111 @@ async function sendMessage(req, res, next) {
 
     console.log('[chat] Resposta bruta do modelo:', respostaBruta);
 
-    // Parse da tag [MEDICAMENTO] emitida pelo modelo
     const registros = [];
-    const medTagMatch = respostaBruta.match(MED_TAG_REGEX);
 
-    if (medTagMatch) {
-      console.log('[chat] Tag [MEDICAMENTO] detectada:', medTagMatch[1]);
+    // =============================================
+    // 1. Parse da tag [DADOS] emitida pelo modelo
+    // =============================================
+    const dadosTagMatch = respostaBruta.match(DADOS_TAG_REGEX);
+    let dadosSalvosPelaTag = false;
+
+    if (dadosTagMatch) {
+      console.log('[chat] Tag [DADOS] detectada:', dadosTagMatch[1]);
       try {
-        const payload = JSON.parse(medTagMatch[1]);
-        const nomeTag = (payload.nome || '').trim();
-        const horarioTag = (payload.horario || '').trim();
+        const dados = JSON.parse(dadosTagMatch[1]);
 
-        // Valida o medicamento contra a lista real do paciente (case-insensitive)
-        const medEncontrado = meds.find(
-          m => m.nome.toLowerCase() === nomeTag.toLowerCase()
-        );
+        if (dados.glicose) {
+          const valor = parseInt(dados.glicose);
+          const st = classificarGlicose(valor);
+          await salvarRegistro(conn, usuarioId, 'GLICOSE', String(valor), st);
+          registros.push({ tipo: 'GLICOSE', valor, status: st });
+          dadosSalvosPelaTag = true;
+          console.log(`[chat] Glicose salva via tag [DADOS]: ${valor} (${st})`);
+        }
 
-        if (!medEncontrado) {
-          console.log(`[chat] Medicamento da tag ("${nomeTag}") não encontrado na lista. Meds:`, meds.map(m => m.nome));
-        } else if (!horarioTag) {
-          console.log('[chat] Tag sem campo "horario" — ignorando registro.');
-        } else {
-          console.log(`[chat] Medicamento detectado: ${medEncontrado.nome} | horário: ${horarioTag}`);
-          await registrarTomadaDB(conn, medEncontrado.id, usuarioId, horarioTag);
-          registros.push({ tipo: 'MEDICAMENTO', nome: medEncontrado.nome, horario: horarioTag });
+        if (dados.sistolica && dados.diastolica) {
+          const sistolica = parseInt(dados.sistolica);
+          const diastolica = parseInt(dados.diastolica);
+          const valor = `${sistolica}/${diastolica}`;
+          const st = classificarPressao(sistolica, diastolica);
+          await salvarRegistro(conn, usuarioId, 'PRESSAO', valor, st);
+          registros.push({ tipo: 'PRESSAO', valor, status: st });
+          dadosSalvosPelaTag = true;
+          console.log(`[chat] Pressão salva via tag [DADOS]: ${valor} (${st})`);
         }
       } catch (parseErr) {
-        console.log('[chat] Erro ao fazer parse do JSON da tag:', parseErr.message, '| Raw:', medTagMatch[1]);
+        console.log('[chat] Erro ao fazer parse da tag [DADOS]:', parseErr.message);
       }
     }
 
-    // Remove a tag da resposta antes de salvar no histórico e enviar ao frontend
-    const resposta = respostaBruta.replace(MED_TAG_REGEX, '').trim();
+    // =============================================
+    // 2. Fallback: regex na mensagem do USUÁRIO
+    //    Só roda se a tag [DADOS] não salvou nada
+    // =============================================
+    if (!dadosSalvosPelaTag) {
+      const glicoseMatch = mensagem.match(GLICOSE_REGEX);
+      if (glicoseMatch) {
+        const valor = parseInt(glicoseMatch[1]);
+        const st = classificarGlicose(valor);
+        await salvarRegistro(conn, usuarioId, 'GLICOSE', String(valor), st);
+        registros.push({ tipo: 'GLICOSE', valor, status: st });
+        console.log(`[chat] Glicose salva via fallback regex: ${valor} (${st})`);
+      }
 
-    // Salva no histórico já sem a tag
+      const pressaoMatch = mensagem.match(PRESSAO_REGEX);
+      if (pressaoMatch) {
+        let sistolica = parseInt(pressaoMatch[1]);
+        let diastolica = parseInt(pressaoMatch[2]);
+        if (sistolica < 30) { sistolica *= 10; diastolica *= 10; }
+        const valor = `${sistolica}/${diastolica}`;
+        const st = classificarPressao(sistolica, diastolica);
+        await salvarRegistro(conn, usuarioId, 'PRESSAO', valor, st);
+        registros.push({ tipo: 'PRESSAO', valor, status: st });
+        console.log(`[chat] Pressão salva via fallback regex: ${valor} (${st})`);
+      }
+    }
+
+    // =============================================
+    // 3. Parse da tag [MED]
+    // =============================================
+    const medTagMatch = respostaBruta.match(MED_TAG_REGEX);
+
+    if (medTagMatch) {
+      console.log('[chat] Tag [MED] detectada:', medTagMatch[1]);
+      try {
+        const payload = JSON.parse(medTagMatch[1]);
+        const nomeTag = (payload.nome || '').trim().toLowerCase();
+        const horarioTag = (payload.horario || '').trim();
+
+        // Case-insensitive partial match: DB nome contains the tag nome or vice-versa
+        const medEncontrado = meds.find(m => {
+          const nomeDB = m.nome.toLowerCase();
+          return nomeDB.includes(nomeTag) || nomeTag.includes(nomeDB);
+        });
+
+        if (!medEncontrado) {
+          console.log(`[chat] Medicamento da tag ("${nomeTag}") não encontrado no banco. Meds:`, meds.map(m => m.nome));
+        } else if (!horarioTag) {
+          console.log('[chat] Tag [MED] sem campo "horario" — ignorando registro.');
+        } else {
+          await registrarTomadaDB(conn, medEncontrado.id, usuarioId, horarioTag);
+          registros.push({ tipo: 'MEDICAMENTO', nome: medEncontrado.nome, horario: horarioTag });
+          console.log(`Medicamento registrado via Abby: ${medEncontrado.nome} às ${horarioTag}`);
+        }
+      } catch (parseErr) {
+        console.log('[chat] Erro ao fazer parse do JSON da tag [MED]:', parseErr.message, '| Raw:', medTagMatch[1]);
+      }
+    }
+
+    // =============================================
+    // 4. Limpa [MED] e [DADOS] antes de enviar
+    // =============================================
+    const resposta = respostaBruta
+      .replace(MED_TAG_REGEX, '')
+      .replace(DADOS_TAG_REGEX, '')
+      .trim();
+
+    // Salva no histórico já sem as tags
     await conn.execute(
       `INSERT INTO chat_historico (usuario_id, role, conteudo) VALUES (:u_id, 'user', :msg)`,
       { u_id: usuarioId, msg: mensagem }
@@ -199,26 +284,6 @@ async function sendMessage(req, res, next) {
       `INSERT INTO chat_historico (usuario_id, role, conteudo) VALUES (:u_id, 'assistant', :msg)`,
       { u_id: usuarioId, msg: resposta }
     );
-
-    // Glicose e pressão ainda detectados por regex (formato numérico, sem ambiguidade)
-    const glicoseMatch = mensagem.match(GLICOSE_REGEX);
-    if (glicoseMatch) {
-      const valor = parseInt(glicoseMatch[1]);
-      const st = classificarGlicose(valor);
-      await salvarRegistro(conn, usuarioId, 'GLICOSE', String(valor), st);
-      registros.push({ tipo: 'GLICOSE', valor, status: st });
-    }
-
-    const pressaoMatch = mensagem.match(PRESSAO_REGEX);
-    if (pressaoMatch) {
-      let sistolica  = parseInt(pressaoMatch[1]);
-      let diastolica = parseInt(pressaoMatch[2]);
-      if (sistolica < 30) { sistolica *= 10; diastolica *= 10; }
-      const valor = `${sistolica}/${diastolica}`;
-      const st = classificarPressao(sistolica, diastolica);
-      await salvarRegistro(conn, usuarioId, 'PRESSAO', valor, st);
-      registros.push({ tipo: 'PRESSAO', valor, status: st });
-    }
 
     res.json({ resposta, registros });
   } catch (err) {
