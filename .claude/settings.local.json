@@ -28,7 +28,11 @@
       "Bash(gunzip -c /tmp/login.gz)",
       "Bash(mkdir -p /tmp/login-design)",
       "Bash(tar -xf /tmp/login-extracted -C /tmp/login-design)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\andre\\\\OneDrive\\\\Área de Trabalho\\\\saude-plus\\\\frontend\\\\src\" -Recurse -Filter \"*Dashboard*\")",
+      "Bash(Select-Object FullName)",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\andre\\\\OneDrive\\\\Área de Trabalho\\\\saude-plus\\\\frontend\\\\src\" -Name *.css -Recurse)",
+      "Bash(powershell -Command \"Get-Content 'c:\\\\Users\\\\andre\\\\OneDrive\\\\Área de Trabalho\\\\saude-plus\\\\Saude_ Dashboard _Standalone_.html' -TotalCount 600\")"
     ]
   }
 }
