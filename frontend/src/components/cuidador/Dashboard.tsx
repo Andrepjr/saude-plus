@@ -445,7 +445,7 @@ export default function Dashboard({ analyzeKey = 0, analyzing = false }: Dashboa
                         ? [`${v} mg/dL`, 'Glicose']
                         : ['Sem dado', 'Glicose']
                     }
-                    labelFormatter={(label: string) => label}
+                    labelFormatter={(label: any) => label}
                   />
                   <Area
                     type="monotone"

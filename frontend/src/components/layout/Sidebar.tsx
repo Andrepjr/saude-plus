@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom';
+import { Heart } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
 interface SidebarProps {
@@ -67,10 +68,11 @@ export default function Sidebar({ open, onClose, alertCount = 0 }: SidebarProps)
       <aside className={`dsh-sidebar${open ? ' dsh-sidebar--open' : ''}`}>
         {/* Logo */}
         <div className="dsh-sidebar-logo">
-          <div className="dsh-logo-mark">S+</div>
+          <div className="dsh-logo-mark">
+            <Heart size={18} strokeWidth={2.5} color="#fff" fill="#fff" />
+          </div>
           <div className="dsh-logo-text">
             <span>Saúde<strong>+</strong></span>
-            <span className="dsh-logo-sub">Cuidador</span>
           </div>
         </div>
 
